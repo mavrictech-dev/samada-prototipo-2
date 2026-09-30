@@ -84,9 +84,10 @@ export function TurnBook({ pages, products, onProduct, onContact }: {
       const isMobile = window.innerWidth < 900;
       setMobile(isMobile);
       const stage = bookElement.closest<HTMLElement>(".relative") || bookElement.parentElement;
-      const available = Math.min((stage?.clientWidth ? stage.clientWidth - (isMobile ? 32 : 120) : 1000), isMobile ? 470 : 1050);
-      const width = isMobile ? available : Math.min(available, 920);
-      const height = width / (isMobile ? .705 : 1.41);
+      const stageWidth = stage?.clientWidth || window.innerWidth;
+      const available = isMobile ? Math.min(stageWidth - 28, 430) : Math.min(stageWidth - 120, 920);
+      const width = Math.max(Math.round(available), 280);
+      const height = Math.round(width / (isMobile ? .705 : 1.41));
       setDimensions({ width, height });
       const $book = window.jQuery(bookElement);
       if ($book.turn("is")) $book.turn("destroy");
@@ -95,10 +96,11 @@ export function TurnBook({ pages, products, onProduct, onContact }: {
         height,
         display: isMobile ? "single" : "double",
         page: 2,
-        autoCenter: true,
-        elevation: 70,
-        gradients: true,
-        duration: 700,
+        autoCenter: !isMobile,
+        elevation: isMobile ? 0 : 50,
+        gradients: !isMobile,
+        duration: isMobile ? 350 : 600,
+        turnCorners: isMobile ? "r,l" : "bl,br",
         when: {
           turning: (_: unknown, page: number) => {
             setActive(page);
@@ -126,9 +128,10 @@ export function TurnBook({ pages, products, onProduct, onContact }: {
       if (!bookElement || !window.jQuery?.fn?.turn) return;
       const nextMobile = window.innerWidth < 900;
       const stage = bookElement.closest<HTMLElement>(".relative") || bookElement.parentElement;
-      const available = Math.min((stage?.clientWidth ? stage.clientWidth - (nextMobile ? 32 : 120) : 1000), nextMobile ? 470 : 1050);
-      const width = nextMobile ? available : Math.min(available, 920);
-      const height = width / (nextMobile ? .705 : 1.41);
+      const stageWidth = stage?.clientWidth || window.innerWidth;
+      const available = nextMobile ? Math.min(stageWidth - 28, 430) : Math.min(stageWidth - 120, 920);
+      const width = Math.max(Math.round(available), 280);
+      const height = Math.round(width / (nextMobile ? .705 : 1.41));
       setDimensions({ width, height });
       const $book = window.jQuery(bookElement);
       try {
@@ -151,10 +154,10 @@ export function TurnBook({ pages, products, onProduct, onContact }: {
   const frameClass = mobile ? "book-frame-single" : isCover ? "book-frame-cover" : isBack ? "book-frame-back" : "book-frame-spread";
 
   return <div className="w-full">
-    <div className="relative mx-auto flex max-w-[1100px] items-center justify-center px-8 md:px-16">
-      <button onClick={()=>move("previous")} disabled={!canPrevious} className="book-arrow left-0" aria-label="Página anterior"><ChevronLeft/></button>
+    <div className="relative mx-auto flex max-w-[1100px] items-center justify-center px-3 sm:px-8 md:px-16">
+      <button onClick={()=>move("previous")} disabled={!canPrevious} className="book-arrow left-0 hidden sm:grid" aria-label="Página anterior"><ChevronLeft/></button>
       <div className={`book-frame ${frameClass}`} style={{ width: dimensions.width, height: dimensions.height }}><div ref={bookRef} className="flipbook">{sheets.map((sheet,index)=><article key={sheet.id} className="book-sheet" aria-label={`Página ${index+1}: ${sheet.label}`}>{sheet.node}</article>)}</div></div>
-      <button onClick={()=>move("next")} disabled={!canNext} className="book-arrow right-0" aria-label="Página siguiente"><ChevronRight/></button>
+      <button onClick={()=>move("next")} disabled={!canNext} className="book-arrow right-0 hidden sm:grid" aria-label="Página siguiente"><ChevronRight/></button>
     </div>
     <div className="mx-auto mt-6 flex max-w-3xl items-center justify-center gap-4 text-xs text-[#6f766b]"><button onClick={()=>move("previous")} disabled={!canPrevious} className="disabled:opacity-30 disabled:pointer-events-none" aria-label="Retroceder una página"><ChevronLeft size={18}/></button><span className="min-w-24 text-center font-medium text-[#353a33]">{view.filter(n=>n>0&&n<=sheets.length).map(n=>String(n).padStart(2,"0")).join("–")} / {String(sheets.length).padStart(2,"0")}</span><button onClick={()=>move("next")} disabled={!canNext} className="disabled:opacity-30 disabled:pointer-events-none" aria-label="Avanzar una página"><ChevronRight size={18}/></button><div className="ml-3 flex gap-1">{sheets.map((sheet,index)=><button key={sheet.id} onClick={()=>{const bookElement=bookRef.current;if(!bookElement)return;try{window.jQuery?.(bookElement).turn("page",index+1)}catch{}}} className={`h-1.5 rounded-full transition-all ${view.includes(index+1)?"w-5 bg-[#558B2F]":"w-1.5 bg-[#b9beb5]"}`} aria-label={`Ir a página ${index+1}`}/>)}</div></div>
     {!ready && <p className="mt-3 text-center text-xs text-[#747b70]">Preparando la revista…</p>}

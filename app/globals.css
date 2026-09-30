@@ -26,6 +26,17 @@ img{max-width:100%}
 .book-frame-single:after{inset:3px -3px -6px -3px}
 .book-frame:before{content:"";position:absolute;left:50%;top:0;z-index:30;height:100%;width:32px;transform:translateX(-50%);background:linear-gradient(90deg,transparent,rgba(0,0,0,.05) 37%,rgba(0,0,0,.22) 50%,rgba(255,255,255,.18) 53%,transparent);pointer-events:none;transition:opacity .3s ease;opacity:1}
 .book-frame-cover:before,.book-frame-back:before,.book-frame-single:before{opacity:0}
+.book-frame-single {
+  overflow: hidden !important;
+  margin: 0 auto !important;
+  border-radius: 8px;
+  box-shadow: 0 12px 32px -10px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+}
+.book-frame-single .flipbook {
+  margin: 0 auto !important;
+  left: 0 !important;
+  right: 0 !important;
+}
 .flipbook{background:transparent!important;overflow:visible!important}
 .book-sheet{position:relative;overflow:hidden;background:var(--paper);color:var(--ink)}
 .book-page{display:flex;height:100%;flex-direction:column;padding:8% 9%;background:var(--paper)}
