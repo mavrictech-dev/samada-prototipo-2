@@ -42,12 +42,57 @@ img{max-width:100%}
 .turn-page-wrapper,.turn-page{overflow:hidden}
 .turn-page-wrapper{box-shadow:0 0 1px rgba(0,0,0,.08)}
 
+/* Fondo responsive del catálogo con blur y oscurecido adaptativo */
+.catalog-bg-wrapper {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.catalog-bg-image {
+  position: absolute;
+  inset: -35px;
+  width: calc(100% + 70px);
+  height: calc(100% + 70px);
+  object-fit: cover;
+  object-position: center 30%;
+  filter: blur(22px) brightness(0.68) saturate(1.1);
+  transform: translate3d(0, 0, 0);
+  will-change: filter, transform;
+  transition: filter 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease;
+}
+
+.catalog-bg-tint {
+  position: absolute;
+  inset: 0;
+  /* Modo Claro: oscurecido con viñeta para que resalte la revista */
+  background: radial-gradient(circle at 50% 35%, rgba(245, 247, 242, 0.72) 0%, rgba(228, 235, 224, 0.86) 100%);
+  backdrop-filter: blur(5px);
+  transition: background 0.4s ease, backdrop-filter 0.4s ease;
+}
+
+/* Modo Oscuro: oscurecido profundo y elegante */
+html[data-theme="dark"] .catalog-bg-image {
+  filter: blur(26px) brightness(0.32) saturate(1.15);
+  opacity: 0.85;
+}
+
+html[data-theme="dark"] .catalog-bg-tint {
+  background: radial-gradient(circle at 50% 35%, rgba(13, 18, 13, 0.78) 0%, rgba(7, 10, 7, 0.92) 100%);
+  backdrop-filter: blur(8px);
+}
+
 html[data-theme="dark"]{color-scheme:dark;background:#111611}
 html[data-theme="dark"] body{background:#111611}
-html[data-theme="dark"] .theme-page{background:#111611!important;color:#eef3ea!important}
+html[data-theme="dark"] .theme-page{color:#eef3ea!important}
 html[data-theme="dark"] .logo-positive{display:none}
 html[data-theme="dark"] .logo-negative{display:block}
 html[data-theme="dark"] .theme-toggle{border-color:#3b4639;background:#202820;color:#f4f7f1}
+html[data-theme="dark"] .theme-page header{background-color:rgba(20,26,20,0.85)!important;backdrop-filter:blur(16px)}
 html[data-theme="dark"] .theme-page [class*="bg-white"]{background-color:#1d241d!important;color:#eef3ea}
 html[data-theme="dark"] .theme-page [class*="bg-[#f"]{background-color:#171d17!important}
 html[data-theme="dark"] .theme-page [class*="bg-[#e"]{background-color:#242d23!important}

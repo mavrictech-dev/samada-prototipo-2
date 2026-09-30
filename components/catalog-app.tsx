@@ -55,8 +55,18 @@ export function CatalogApp() {
 
   if(!ready)return <main className="grid min-h-screen place-items-center bg-[#f3f5f0]"><div className="text-center"><span className="mx-auto block size-8 animate-spin rounded-full border-2 border-[#7CB342] border-t-transparent"/><p className="mt-4 text-sm text-[#687064]">Preparando catálogo…</p></div></main>;
   const bookKey=JSON.stringify([visiblePages,filtered]);
-  return <div className="theme-page min-h-screen bg-[#f3f5f0] text-[#212121]">
-    <header className="sticky top-0 z-50 border-b border-[#dfe3da] bg-white/95 backdrop-blur-xl">
+  return <div className="theme-page relative min-h-screen text-[#212121]">
+    {/* Fondo completo responsive con imagen de almacén, blur y oscurecido adaptativo */}
+    <div className="catalog-bg-wrapper" aria-hidden="true">
+      <img
+        src="/assets/catalog-bg.webp"
+        alt=""
+        className="catalog-bg-image"
+      />
+      <div className="catalog-bg-tint" />
+    </div>
+
+    <header className="sticky top-0 z-50 border-b border-[#dfe3da]/80 bg-white/90 backdrop-blur-xl transition-colors">
       <div className="mx-auto flex h-[76px] max-w-[1440px] items-center gap-6 px-5 lg:px-10">
         <Link href="/" aria-label="Samada inicio"><SamadaLogo className="w-36 md:w-40"/></Link>
         <span className="hidden border-l border-[#e0e3dc] pl-6 text-[11px] text-[#747b70] md:block">Canal distribuidores</span>
@@ -71,18 +81,18 @@ export function CatalogApp() {
       </div>
     </header>
 
-    <main>
+    <main className="relative z-10">
       <section className="mx-auto max-w-[1440px] px-5 pt-8 lg:px-10">
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div><p className="text-xs text-[#687064]">Samada / Catálogo para distribuidores</p><h1 className="mt-3 max-w-3xl text-3xl font-medium leading-tight tracking-[-.055em] md:text-5xl">Encuentra, cotiza y arma tu pedido sin perder tiempo.</h1></div>
           <div className="flex items-center gap-2 text-xs text-[#687064]"><span className="size-2 rounded-full bg-[#7CB342]"/>{filtered.length} productos disponibles</div>
         </div>
-        <div className="mt-8 flex flex-col gap-3 border-b border-[#dce1d7] pb-5 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex gap-2 overflow-x-auto pb-1">{categories.map(item=><button key={item.id} onClick={()=>setCategory(item.id)} className={`shrink-0 rounded-full px-4 py-2.5 text-xs transition ${category===item.id?"bg-[#22251f] text-white":"border border-[#d9ddd5] bg-white hover:bg-[#eef2e8]"}`}>{item.name} <span className="ml-2 opacity-60">{state.products.filter(product=>item.id==="all"||product.category===item.id).length}</span></button>)}</div>
+        <div className="mt-8 flex flex-col gap-3 border-b border-[#dce1d7]/80 pb-5 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex gap-2 overflow-x-auto pb-1">{categories.map(item=><button key={item.id} onClick={()=>setCategory(item.id)} className={`shrink-0 rounded-full px-4 py-2.5 text-xs transition ${category===item.id?"bg-[#22251f] text-white":"border border-[#d9ddd5]/80 bg-white/90 backdrop-blur-sm hover:bg-[#eef2e8]"}`}>{item.name} <span className="ml-2 opacity-60">{state.products.filter(product=>item.id==="all"||product.category===item.id).length}</span></button>)}</div>
           <div className="flex flex-wrap items-center gap-2">
-            <label className="flex h-10 items-center gap-2 rounded-full border border-[#d9ddd5] bg-white px-4 text-xs"><SlidersHorizontal size={14}/><select value={brand} onChange={e=>setBrand(e.target.value)} className="bg-transparent outline-none"><option value="all">Todas las marcas</option>{brands.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select><ChevronDown size={13}/></label>
-            <label className="flex h-10 cursor-pointer items-center gap-2 rounded-full border border-[#d9ddd5] bg-white px-4 text-xs"><input type="checkbox" checked={stockOnly} onChange={e=>setStockOnly(e.target.checked)} className="accent-[#558B2F]"/>Con stock</label>
-            <div className="flex rounded-full border border-[#d9ddd5] bg-white p-1"><button onClick={()=>setView("book")} className={`grid size-8 place-items-center rounded-full ${view==="book"?"bg-[#edf3e6] text-[#558B2F]":"text-[#7a8176]"}`} aria-label="Vista revista"><Grid2X2 size={15}/></button><button onClick={()=>setView("list")} className={`grid size-8 place-items-center rounded-full ${view==="list"?"bg-[#edf3e6] text-[#558B2F]":"text-[#7a8176]"}`} aria-label="Vista pedido rápido"><List size={16}/></button></div>
+            <label className="flex h-10 items-center gap-2 rounded-full border border-[#d9ddd5]/80 bg-white/90 backdrop-blur-sm px-4 text-xs"><SlidersHorizontal size={14}/><select value={brand} onChange={e=>setBrand(e.target.value)} className="bg-transparent outline-none"><option value="all">Todas las marcas</option>{brands.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select><ChevronDown size={13}/></label>
+            <label className="flex h-10 cursor-pointer items-center gap-2 rounded-full border border-[#d9ddd5]/80 bg-white/90 backdrop-blur-sm px-4 text-xs"><input type="checkbox" checked={stockOnly} onChange={e=>setStockOnly(e.target.checked)} className="accent-[#558B2F]"/>Con stock</label>
+            <div className="flex rounded-full border border-[#d9ddd5]/80 bg-white/90 backdrop-blur-sm p-1"><button onClick={()=>setView("book")} className={`grid size-8 place-items-center rounded-full ${view==="book"?"bg-[#edf3e6] text-[#558B2F]":"text-[#7a8176]"}`} aria-label="Vista revista"><Grid2X2 size={15}/></button><button onClick={()=>setView("list")} className={`grid size-8 place-items-center rounded-full ${view==="list"?"bg-[#edf3e6] text-[#558B2F]":"text-[#7a8176]"}`} aria-label="Vista pedido rápido"><List size={16}/></button></div>
           </div>
         </div>
       </section>
@@ -90,9 +100,9 @@ export function CatalogApp() {
       {view==="book" ? <section className="py-6"><div className="mx-auto mb-4 flex max-w-[1360px] items-center justify-between px-5 text-[11px] text-[#6d7469] lg:px-10"><span>Catálogo editorial interactivo</span><span className="hidden sm:block">Arrastra una esquina o usa las flechas</span></div><TurnBook key={bookKey} pages={visiblePages} products={filtered} onProduct={selectProduct} onContact={requestAdvice}/>{filtered.length===0&&<Empty onReset={()=>{setCategory("all");setBrand("all");setStockOnly(false);setQuery("")}}/>}</section> :
       <DistributorList products={filtered} cart={cart} onProduct={selectProduct} onAdd={addToCart} getBrand={getBrand}/>} 
 
-      <section className="border-y border-[#dce1d7] bg-white"><div className="mx-auto grid max-w-[1360px] gap-4 px-5 py-6 text-xs text-[#61685e] sm:grid-cols-3 lg:px-10"><span className="flex items-center gap-2"><Package size={17} className="text-[#558B2F]"/>Precios mayoristas claros</span><span className="flex items-center gap-2"><Sparkles size={17} className="text-[#558B2F]"/>Surtido editable por catálogo</span><span className="flex items-center gap-2"><MessageCircle size={17} className="text-[#558B2F]"/>Asesoría por sede</span></div></section>
+      <section className="border-y border-[#dce1d7]/80 bg-white/80 backdrop-blur-md"><div className="mx-auto grid max-w-[1360px] gap-4 px-5 py-6 text-xs text-[#61685e] sm:grid-cols-3 lg:px-10"><span className="flex items-center gap-2"><Package size={17} className="text-[#558B2F]"/>Precios mayoristas claros</span><span className="flex items-center gap-2"><Sparkles size={17} className="text-[#558B2F]"/>Surtido editable por catálogo</span><span className="flex items-center gap-2"><MessageCircle size={17} className="text-[#558B2F]"/>Asesoría por sede</span></div></section>
     </main>
-    <footer className="mx-auto flex max-w-[1440px] flex-col gap-3 px-5 py-7 text-[10px] text-[#747b70] sm:flex-row sm:justify-between lg:px-10"><span>© 2026 Samada · Catálogo de demostración</span><span>Precios, stock y sedes requieren validación comercial</span></footer>
+    <footer className="relative z-10 mx-auto flex max-w-[1440px] flex-col gap-3 px-5 py-7 text-[10px] text-[#747b70] sm:flex-row sm:justify-between lg:px-10"><span>© 2026 Samada · Catálogo de demostración</span><span>Precios, stock y sedes requieren validación comercial</span></footer>
 
     {searchOpen&&<SearchPalette products={state.products.filter(p=>p.active)} getBrand={getBrand} getSubcategory={getSubcategory} onClose={()=>setSearchOpen(false)} onSelect={product=>{setSearchOpen(false);selectProduct(product)}}/>}
     <ProductModal product={selected} quantity={quantity} onQuantity={setQuantity} onClose={()=>setSelected(null)} onAdd={()=>selected&&addToCart(selected,quantity)}/>
