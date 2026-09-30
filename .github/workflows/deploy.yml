@@ -1,0 +1,26 @@
+name: Despliegue Continuo a Contabo VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Actualizar en Contabo VPS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Conectar por SSH y actualizar contenedores
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 37.60.234.60
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            set -e
+            cd /var/www/samada
+            git pull origin main
+            chmod +x deploy.sh
+            ./deploy.sh

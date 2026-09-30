@@ -1,0 +1,29 @@
+# Configuración de Reverse Proxy y SSL automático para Samada Commerce
+
+# Dominio público para clientes: Catálogo
+samadaperu.com, www.samadaperu.com {
+    reverse_proxy app:3000
+    encode zstd gzip
+
+    # Headers de seguridad
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+}
+
+# Subdominio administrativo: Dashboard y CMS
+gestion.samadaperu.com {
+    reverse_proxy app:3000
+    encode zstd gzip
+
+    # Headers de seguridad
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+}

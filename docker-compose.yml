@@ -1,0 +1,18 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: samada_app
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+    volumes:
+      - ./data:/app/data
+
+# Si tu VPS ya tiene Caddy o Nginx en el host o en otro contenedor,
+# este contenedor corre en el puerto 3001 sin interferir con tu primera app.
