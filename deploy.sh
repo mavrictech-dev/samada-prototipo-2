@@ -30,6 +30,12 @@ docker compose up -d --build --remove-orphans
 echo "[3/4] Limpiando capas obsoletas de Docker..."
 docker image prune -f
 
+# Conectar automáticamente a la red de Caddy si existe
+CADDY_NET=$(docker inspect grenco-caddy-1 --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}' 2>/dev/null || true)
+if [ -n "$CADDY_NET" ]; then
+    docker network connect "$CADDY_NET" samada_app 2>/dev/null || true
+fi
+
 # 5. Estado final
 echo "[4/4] Verificando estado de los contenedores..."
 sleep 3
