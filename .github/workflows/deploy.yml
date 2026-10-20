@@ -1,30 +1,125 @@
-name: Continuous Deployment - Contabo VPS
+name: Samada CI y despliegue continuo
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  deploy:
-    name: Despliegue automático en VPS
+  validate:
+    name: Compilar y probar catálogo
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: samada
+          POSTGRES_USER: samada
+          POSTGRES_PASSWORD: samada-ci-only
+        ports: ["55439:5432"]
+        options: >-
+          --health-cmd "pg_isready -U samada -d samada"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      mail:
+        image: axllent/mailpit:v1.29
+        ports: ["2526:1025", "8026:8025"]
+    env:
+      DATABASE_URL: postgresql://samada:samada-ci-only@127.0.0.1:55439/samada
+      BETTER_AUTH_URL: http://localhost:3000
+      TRUSTED_ORIGINS: http://localhost:3000
+      SMTP_HOST: 127.0.0.1
+      SMTP_PORT: "2526"
+      SMTP_SECURE: "false"
+      MAIL_FROM: Samada <acceso@samada.local>
+      NEXT_TELEMETRY_DISABLED: "1"
     steps:
-      - name: Ejecutar despliegue vía SSH en Contabo
-        uses: appleboy/ssh-action@v1.0.3
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          host: 37.60.234.60
-          username: root
+          node-version: "24"
+          cache: npm
+      - name: Configurar secreto efímero de pruebas
+        run: echo "BETTER_AUTH_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - run: npm ci
+      - run: npm run lint
+      - run: node --test tests/deployment.test.mjs
+      - run: npm run db:migrate
+      - run: npm run admin:create -- --email admin@samada.local
+      - run: npm run build
+      - name: Probar aplicación y procesador con 1.500 productos
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start > /tmp/samada-app.log 2>&1 &
+          APP_PID=$!
+          npm run worker > /tmp/samada-worker.log 2>&1 &
+          WORKER_PID=$!
+          trap 'kill "$APP_PID" "$WORKER_PID" 2>/dev/null || true' EXIT
+          curl --fail --silent --show-error --retry 30 --retry-connrefused --retry-delay 2 http://localhost:3000/api/health > /dev/null
+          npm run test:integration
+      - name: Construir imagen Linux de producción
+        run: docker build --target runner --tag samada:ci .
+
+  configuration:
+    name: Verificar acceso de despliegue
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.access.outputs.configured }}
+    steps:
+      - id: access
+        env:
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          if [ -n "$SSH_PASSWORD" ] || [ -n "$SSH_PRIVATE_KEY" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "### Despliegue pendiente de configurar" >> "$GITHUB_STEP_SUMMARY"
+            echo 'Añade SSH_PASSWORD o SSH_PRIVATE_KEY en Settings → Secrets and variables → Actions. Consulta docs/DESPLIEGUE-CONTINUO.md. No se contactó al VPS.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  deploy:
+    name: Desplegar versión validada en Contabo
+    needs: [validate, configuration]
+    if: needs.configuration.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    concurrency:
+      group: samada-production
+      cancel-in-progress: false
+    steps:
+      - name: Desplegar commit validado por SSH
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+          DEPLOY_CADDY_NETWORK: ${{ vars.CADDY_NETWORK }}
+          DEPLOY_PUBLIC_HEALTH_URL: ${{ vars.PUBLIC_HEALTH_URL }}
+        with:
+          host: ${{ vars.SSH_HOST || '37.60.234.60' }}
+          username: ${{ vars.SSH_USER || 'root' }}
+          port: ${{ vars.SSH_PORT || '22' }}
           password: ${{ secrets.SSH_PASSWORD }}
-          port: 22
-          script_stop: true
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          fingerprint: ${{ secrets.SSH_FINGERPRINT }}
+          command_timeout: 30m
+          envs: DEPLOY_SHA,DEPLOY_CADDY_NETWORK,DEPLOY_PUBLIC_HEALTH_URL
           script: |
-            echo "=========================================="
-            echo "Iniciando despliegue de Samada Commerce..."
-            echo "=========================================="
+            set -eu
             cd /var/www/samada
+            test "$(git remote get-url origin)" = "https://github.com/mavrictech-dev/samada-prototipo-2.git" || {
+              echo "El origin del servidor no coincide con el repositorio confirmado."
+              exit 1
+            }
             git fetch origin main
-            git reset --hard origin/main
-            chmod +x deploy.sh
-            ./deploy.sh
+            git cat-file -e "$DEPLOY_SHA^{commit}"
+            git checkout --detach "$DEPLOY_SHA"
+            CADDY_NETWORK="$DEPLOY_CADDY_NETWORK" PUBLIC_HEALTH_URL="$DEPLOY_PUBLIC_HEALTH_URL" bash deploy.sh

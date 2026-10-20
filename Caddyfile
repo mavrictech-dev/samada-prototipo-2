@@ -2,7 +2,7 @@
 
 # Dominio público para clientes: Catálogo
 samadaperu.com, www.samadaperu.com {
-    reverse_proxy app:3000
+    reverse_proxy samada_app:3000
     encode zstd gzip
 
     # Headers de seguridad
@@ -16,7 +16,7 @@ samadaperu.com, www.samadaperu.com {
 
 # Subdominio administrativo: Dashboard y CMS
 gestion.samadaperu.com {
-    reverse_proxy app:3000
+    reverse_proxy samada_app:3000
     encode zstd gzip
 
     # Headers de seguridad

@@ -63,6 +63,8 @@ Roles iniciales: Superadministrador, Administrador, Gestor de catálogo, Operado
 
 ## Datos, migración y despliegue
 
+Despliegue continuo: [guía de GitHub Actions y Contabo](docs/DESPLIEGUE-CONTINUO.md). Cada push a main valida compilación, importaciones y contenedores; el despliegue requiere configurar el acceso SSH del repositorio y el entorno de producción en el VPS.
+
 `db:migrate` prepara el esquema PostgreSQL y las tablas de autenticación. La primera vez importa `data/cms-state.json` si existe; en caso contrario usa datos demostrativos de `lib/seed.ts`. Guarda copia del origen en `data/backups`, conserva identificadores y convierte imágenes base64 a WebP. La marca `migration-v1` evita repetir la importación. No migra automáticamente el antiguo localStorage de otros navegadores.
 
 Para desplegar configurar `.env` con dominio HTTPS real, `BETTER_AUTH_URL`, `TRUSTED_ORIGINS`, secreto de autenticación, PostgreSQL, SMTP y almacenamiento. No usar Mailpit para correo real. `docker-compose.yml` incluye base, migración, aplicación y trabajador; publica la aplicación en localhost:3001 para colocar un proxy HTTPS delante. Revisar las URLs de autenticación y propiedad de `data/` para UID 1001 en Linux. El correo externo y la publicación en un servidor no se realizan con la configuración local.
