@@ -2,9 +2,7 @@
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  serverExternalPackages: ['pg', 'pg-boss', 'sharp', 'nodemailer'],
 };
 
 export default nextConfig;

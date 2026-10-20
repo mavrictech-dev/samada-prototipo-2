@@ -1,0 +1,78 @@
+import {createRequire} from 'node:module';
+import fs from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const require=createRequire(import.meta.url);
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
+const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{})});
+const context=await browser.newContext({viewport:{width:1440,height:1000}});
+const page=await context.newPage();const errors=[];
+page.on('pageerror',error=>errors.push(error.message));
+await fs.mkdir('data/qa',{recursive:true});
+try{
+  await page.goto('http://localhost:3000/login');
+  await page.getByRole('heading',{name:'Tu catálogo, bajo control.'}).waitFor();
+  await page.screenshot({path:'data/qa/login-desktop.png',fullPage:true});
+  const access=await fs.readFile('data/ACCESO-LOCAL.txt','utf8');
+  await page.getByLabel('Correo electrónico').fill(access.match(/Correo: (.+)/)[1].trim());
+  await page.getByLabel('Contraseña',{exact:true}).fill(access.match(/aleatoria: (.+)/)[1].trim());
+  await page.getByRole('button',{name:'Iniciar sesión',exact:true}).click();
+  await page.waitForURL('**/admin');
+  await page.getByRole('heading',{name:'Cada producto, en su lugar.'}).waitFor();
+  const privateState=await (await context.request.get('http://localhost:3000/api/admin/state')).json();
+  assert.ok(privateState.products.length>0);
+  assert.equal(await page.locator('.cms-stats strong').first().textContent(),String(privateState.products.length));
+  assert.equal(await page.getByRole('button',{name:'Abrir menú',exact:true}).isVisible(),false);
+  await page.screenshot({path:'data/qa/admin-desktop.png',fullPage:true});
+  for(const name of ['Productos','Marcas y tamaños','Distribución','Excel y CSV','Imágenes por SKU','Usuarios','Roles','Permisos','Actividad','Configuración','Mi cuenta']){
+    await page.locator('.cms-sidebar nav').getByRole('button',{name,exact:false}).click();
+    await page.locator('.cms-main h2').first().waitFor();
+    assert.equal(await page.locator('.cms-main .cms-error').count(),0,`Error visible en ${name}`);
+  }
+  await page.locator('.cms-sidebar nav').getByRole('button',{name:'Marcas y tamaños'}).click();
+  await page.getByRole('button',{name:'Tamaños',exact:false}).last().click();
+  await page.screenshot({path:'data/qa/tamanos-desktop.png',fullPage:true});
+  await page.getByRole('button',{name:'Agregar',exact:true}).click();
+  await page.getByRole('dialog').waitFor();
+  assert.ok(await page.getByLabel('Código *',{exact:true}).evaluate(e=>document.activeElement===e));
+  await page.getByLabel('Nombre *',{exact:true}).fill('Prueba de formulario sin guardar');
+  await page.screenshot({path:'data/qa/tamano-formulario.png',fullPage:true});
+  await page.keyboard.press('Escape');
+  assert.equal(await page.getByRole('dialog').count(),0);
+  await page.setViewportSize({width:390,height:844});
+  await page.waitForFunction(()=>document.querySelector('.cms-sidebar').getBoundingClientRect().right<=1);
+  await page.screenshot({path:'data/qa/admin-mobile.png'});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'El panel desborda el ancho móvil');
+  await page.getByRole('button',{name:'Abrir menú',exact:true}).click();
+  await page.locator('.cms-sidebar nav').getByRole('button',{name:'Resumen'}).click();
+  await page.getByRole('heading',{name:'Cada producto, en su lugar.'}).waitFor();
+  await page.goto('http://localhost:3000/');
+  await page.getByLabel('Filtrar marca').waitFor();
+  await page.setViewportSize({width:1440,height:1000});
+  await page.waitForFunction(()=>!!window.jQuery?.fn?.turn&&document.querySelector('.flipbook .page-wrapper'));
+  const brandOptions=await page.getByLabel('Filtrar marca').locator('option').evaluateAll(items=>items.map(i=>i.value).filter(v=>v!=='all'));
+  for(let i=0;i<8;i++){
+    await page.getByLabel('Filtrar marca').selectOption(brandOptions[i%brandOptions.length]);
+    await page.getByLabel('Filtrar productos por texto').fill(i%2?'zz-no-match':'');
+    await page.getByLabel('Filtrar productos por texto').fill('');
+    await page.getByLabel('Ordenar productos').selectOption(i%2?'size':'manual');
+  }
+  await page.getByLabel('Filtrar marca').selectOption('all');
+  await page.getByLabel('Ordenar productos').selectOption('');
+  await page.waitForFunction(()=>!!document.querySelector('.flipbook .page-wrapper'));
+  await page.getByRole('button',{name:'Avanzar una página',exact:true}).click();
+  await page.waitForTimeout(800);
+  await page.screenshot({path:'data/qa/catalogo-desktop.png',fullPage:true});
+  await page.getByRole('button',{name:'Vista pedido rápido'}).click();
+  await page.getByLabel('Filtrar productos por texto').fill('no-hay-productos-qa');
+  await page.getByText('No hay productos con estos filtros.').waitFor();
+  await page.getByLabel('Filtrar productos por texto').fill('');
+  await page.getByRole('button',{name:'Vista revista'}).click();
+  await page.setViewportSize({width:390,height:844});
+  await page.waitForTimeout(800);
+  await page.screenshot({path:'data/qa/catalogo-mobile.png',fullPage:true});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'El catálogo desborda el ancho móvil');
+  await page.getByRole('button',{name:'Cambiar a modo oscuro'}).click();
+  await page.screenshot({path:'data/qa/catalogo-mobile-oscuro.png',fullPage:true});
+  assert.deepEqual(errors,[],'Errores de ejecución en el navegador');
+  console.log('Navegador: login, 11 módulos CMS, móvil, filtros repetidos, Turn.js y tema oscuro verificados.');
+}finally{await browser.close();}

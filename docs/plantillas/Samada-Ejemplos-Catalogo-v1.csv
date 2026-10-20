@@ -1,0 +1,3 @@
+﻿sku,nombre,marca_codigo,categoria_codigo,subcategoria_codigo,tamano_codigo,codigo_grupo,presentacion,precio_mayorista,precio_sugerido,stock,pedido_minimo,unidades_caja,descripcion,uso,publicado,destacado,orden,moneda,imagen_archivo
+000123,Shampoo Nutritivo 250 ml,BOTANICA,CAPILAR,SHAMPOO,VOL-250ML,SHAMPOO-NUTRITIVO,Botella,19.9,28.9,100,6,12,Limpieza suave para la rutina diaria.,Uso capilar,NO,NO,10,PEN,000123.jpg
+000124,Shampoo Nutritivo 500 ml,BOTANICA,CAPILAR,SHAMPOO,VOL-500ML,SHAMPOO-NUTRITIVO,Botella,32.9,45.9,60,6,12,Limpieza suave para la rutina diaria.,Uso capilar,NO,NO,20,PEN,000124.jpg

@@ -7,15 +7,20 @@ import { useCms } from "./cms-provider";
 import { ProductModal } from "./product-modal";
 import { TurnBook } from "./turn-book";
 import { SamadaLogo, ThemeToggle } from "./theme-toggle";
-import type { Product } from "@/lib/types";
+import type { CatalogSort, Product } from "@/lib/types";
+import { normalizeText, sortProducts } from "@/lib/catalog";
+import { sortLabels } from "./cms/pages";
 
 type Cart = Record<string, number>;
 
 export function CatalogApp() {
-  const { state, ready } = useCms();
+  const { state, ready, error, refresh } = useCms();
   const [query,setQuery] = useState("");
   const [category,setCategory] = useState("all");
   const [brand,setBrand] = useState("all");
+  const [size,setSize] = useState("all");
+  const [subcategory,setSubcategory] = useState("all");
+  const [sort,setSort] = useState<CatalogSort|''>('');
   const [stockOnly,setStockOnly] = useState(false);
   const [view,setView] = useState<"book"|"list">("book");
   const [searchOpen,setSearchOpen] = useState(false);
@@ -29,15 +34,23 @@ export function CatalogApp() {
   useEffect(()=>{ const handler=(event:KeyboardEvent)=>{ if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();setSearchOpen(true)} if(event.key==="/"&&!/INPUT|TEXTAREA|SELECT/.test((event.target as HTMLElement).tagName)){event.preventDefault();setSearchOpen(true)} }; addEventListener("keydown",handler); return()=>removeEventListener("keydown",handler);},[]);
   useEffect(()=>{ if(state.branches.length&&!state.branches.some(item=>item.id===branch))setBranch(state.branches[0].id);},[state.branches,branch]);
 
-  const categories=useMemo(()=>[{id:"all",name:"Todo"},...state.categories.filter(item=>item.active).map(item=>({id:item.id,name:item.name}))],[state.categories]);
+  const categories=useMemo(()=>[{id:"all",name:"Todo"},...state.categories.filter(item=>item.active&&(brand==='all'||state.brands.find(b=>b.id===brand)?.categoryIds?.includes(item.id))).map(item=>({id:item.id,name:item.name}))],[state.categories,state.brands,brand]);
   const brands=useMemo(()=>state.brands.filter(item=>item.active),[state.brands]);
   const getBrand=useCallback((id:string)=>state.brands.find(item=>item.id===id)?.name||id,[state.brands]);
   const getSubcategory=useCallback((id:string)=>state.subcategories.find(item=>item.id===id)?.name||id,[state.subcategories]);
-  const filtered=useMemo(()=>state.products.filter(product=>{
-    const haystack=`${product.name} ${product.sku} ${getBrand(product.brand)} ${getSubcategory(product.subcategory)}`.toLowerCase();
-    return product.active && (category==="all"||product.category===category) && (brand==="all"||product.brand===brand) && (!stockOnly||product.stock>0) && haystack.includes(query.toLowerCase().trim());
-  }),[state.products,category,brand,stockOnly,query,getBrand,getSubcategory]);
-  const visiblePages=useMemo(()=>state.pages.map(page=>({...page,productIds:page.productIds.filter(id=>filtered.some(product=>product.id===id))})),[state.pages,filtered]);
+  const filtered=useMemo(()=>sortProducts(state.products.filter(product=>{
+    const haystack=normalizeText(`${product.name} ${product.sku} ${getBrand(product.brand)} ${getSubcategory(product.subcategory)}`);
+    return product.active && (category==="all"||product.category===category) && (brand==="all"||product.brand===brand) && (subcategory==='all'||product.subcategory===subcategory) && (size==='all'||product.sizeId===size) && (!stockOnly||product.stock>0) && haystack.includes(normalizeText(query.trim()));
+  }),state,sort||state.sort),[state,category,brand,subcategory,size,stockOnly,query,getBrand,getSubcategory,sort]);
+  const visiblePages=useMemo(()=>{
+    const pages=state.pages.filter(p=>p.published).map(page=>{
+      const items=page.automatic?filtered.filter(p=>(!page.brandId||p.brand===page.brandId)&&(!page.categoryId||p.category===page.categoryId)):page.productIds.map(id=>filtered.find(p=>p.id===id)).filter((p):p is Product=>!!p);
+      return {...page,productIds:(sort||page.sort!=='manual'?sortProducts(items,state,sort||page.sort||state.sort):items).map(p=>p.id)};
+    });
+    const assigned=new Set(pages.flatMap(p=>p.productIds));const rest=filtered.filter(p=>!assigned.has(p.id));
+    state.brands.forEach(b=>state.categories.forEach(c=>{const items=rest.filter(p=>p.brand===b.id&&p.category===c.id);if(items.length)pages.push({id:`auto-${b.id}-${c.id}`,title:`${b.name} · ${c.name}`,subtitle:'Presentaciones para tu negocio',slug:`${b.id}-${c.id}`,type:'products',theme:'white',productIds:items.map(p=>p.id),published:true});}));
+    return pages;
+  },[state,filtered,sort]);
   const cartItems=useMemo(()=>Object.entries(cart).map(([id,amount])=>({product:state.products.find(product=>product.id===id),amount})).filter(item=>item.product) as Array<{product:Product;amount:number}>,[cart,state.products]);
   const cartCount=cartItems.reduce((sum,item)=>sum+item.amount,0);
   const cartTotal=cartItems.reduce((sum,item)=>sum+item.product.wholesalePrice*item.amount,0);
@@ -54,7 +67,8 @@ export function CatalogApp() {
   };
 
   if(!ready)return <main className="grid min-h-screen place-items-center bg-[#f3f5f0]"><div className="text-center"><span className="mx-auto block size-8 animate-spin rounded-full border-2 border-[#7CB342] border-t-transparent"/><p className="mt-4 text-sm text-[#687064]">Preparando catálogo…</p></div></main>;
-  const bookKey=JSON.stringify([visiblePages,filtered]);
+  if(error)return <main className="grid min-h-screen place-items-center"><div className="text-center"><p>{error}</p><button className="mt-4 rounded-lg bg-[#7CB342] px-5 py-3" onClick={()=>void refresh()}>Reintentar</button></div></main>;
+  const bookKey=JSON.stringify([visiblePages.map(p=>[p.id,p.productIds]),filtered.map(p=>[p.id,p.version])]);
   return <div className="theme-page relative min-h-screen text-[#212121]">
     {/* Fondo completo responsive con imagen de almacén, blur y oscurecido adaptativo */}
     <div className="catalog-bg-wrapper" aria-hidden="true">
@@ -76,7 +90,7 @@ export function CatalogApp() {
           <button onClick={()=>setSearchOpen(true)} className="grid size-10 place-items-center rounded-full md:hidden" aria-label="Buscar"><Search size={19}/></button>
           <button onClick={()=>setCartOpen(true)} className="relative flex h-11 items-center gap-2 rounded-xl bg-[#7CB342] px-3.5 text-xs font-semibold" aria-label="Abrir mi pedido"><ShoppingBag size={17}/><span className="hidden sm:inline">Mi pedido</span>{cartCount>0&&<span className="grid size-5 place-items-center rounded-full bg-[#233018] text-[9px] text-white">{cartCount}</span>}</button>
           <ThemeToggle compact/>
-          <Link href={typeof window !== "undefined" && window.location.hostname.includes("samadaperu.com") ? "https://gestion.samadaperu.com" : "/admin"} className="grid size-10 place-items-center rounded-full border border-[#dfe3da]" aria-label="Administrar catálogo"><Settings size={17}/></Link>
+          <Link href="/admin" className="grid size-10 place-items-center rounded-full border border-[#dfe3da]" aria-label="Administrar catálogo"><Settings size={17}/></Link>
         </div>
       </div>
     </header>
@@ -88,16 +102,20 @@ export function CatalogApp() {
           <div className="flex items-center gap-2 text-xs text-[#687064]"><span className="size-2 rounded-full bg-[#7CB342]"/>{filtered.length} productos disponibles</div>
         </div>
         <div className="mt-8 flex flex-col gap-3 border-b border-[#dce1d7]/80 pb-5 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex gap-2 overflow-x-auto pb-1">{categories.map(item=><button key={item.id} onClick={()=>setCategory(item.id)} className={`shrink-0 rounded-full px-4 py-2.5 text-xs transition ${category===item.id?"bg-[#22251f] text-white":"border border-[#d9ddd5]/80 bg-white/90 backdrop-blur-sm hover:bg-[#eef2e8]"}`}>{item.name} <span className="ml-2 opacity-60">{state.products.filter(product=>item.id==="all"||product.category===item.id).length}</span></button>)}</div>
+          <div className="flex gap-2 overflow-x-auto pb-1">{categories.map(item=><button key={item.id} onClick={()=>{setCategory(item.id);setSubcategory("all")}} className={`shrink-0 rounded-full px-4 py-2.5 text-xs transition ${category===item.id?"bg-[#22251f] text-white":"border border-[#d9ddd5]/80 bg-white/90 backdrop-blur-sm hover:bg-[#eef2e8]"}`}>{item.name} <span className="ml-2 opacity-60">{state.products.filter(product=>item.id==="all"||product.category===item.id).length}</span></button>)}</div>
           <div className="flex flex-wrap items-center gap-2">
-            <label className="flex h-10 items-center gap-2 rounded-full border border-[#d9ddd5]/80 bg-white/90 backdrop-blur-sm px-4 text-xs"><SlidersHorizontal size={14}/><select value={brand} onChange={e=>setBrand(e.target.value)} className="bg-transparent outline-none"><option value="all">Todas las marcas</option>{brands.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select><ChevronDown size={13}/></label>
+            <label className="flex h-10 items-center gap-2 rounded-full border border-[#d9ddd5]/80 bg-white/90 backdrop-blur-sm px-4 text-xs"><SlidersHorizontal size={14}/><select aria-label="Filtrar marca" value={brand} onChange={e=>{setBrand(e.target.value);setCategory("all");setSubcategory("all");setSize("all")}} className="bg-transparent outline-none"><option value="all">Todas las marcas</option>{brands.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select><ChevronDown size={13}/></label>
+            <label className="flex h-10 items-center rounded-full border border-[#d9ddd5]/80 bg-white/90 px-4 text-xs"><select aria-label="Filtrar tamaño" value={size} onChange={e=>setSize(e.target.value)} className="bg-transparent outline-none"><option value="all">Todos los tamaños</option>{state.sizes.filter(s=>brand==='all'||state.brands.find(b=>b.id===brand)?.sizeIds?.includes(s.id)).map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+            <label className="flex h-10 items-center rounded-full border border-[#d9ddd5]/80 bg-white/90 px-4 text-xs"><select aria-label="Filtrar subcategoría" value={subcategory} onChange={e=>setSubcategory(e.target.value)} className="bg-transparent outline-none"><option value="all">Todas las subcategorías</option>{state.subcategories.filter(s=>(category==='all'||s.categoryId===category)&&(brand==='all'||state.brands.find(b=>b.id===brand)?.subcategoryIds?.includes(s.id))).map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+            <label className="flex h-10 items-center rounded-full border border-[#d9ddd5]/80 bg-white/90 px-4 text-xs"><select aria-label="Ordenar productos" value={sort} onChange={e=>setSort(e.target.value as CatalogSort|'')} className="bg-transparent outline-none"><option value="">Orden del catálogo</option>{Object.entries(sortLabels).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>
+            <label className="flex h-10 items-center gap-2 rounded-full border border-[#d9ddd5]/80 bg-white/90 px-4 text-xs"><Search size={14}/><input aria-label="Filtrar productos por texto" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Nombre o SKU…" className="w-36 bg-transparent outline-none"/></label>
             <label className="flex h-10 cursor-pointer items-center gap-2 rounded-full border border-[#d9ddd5]/80 bg-white/90 backdrop-blur-sm px-4 text-xs"><input type="checkbox" checked={stockOnly} onChange={e=>setStockOnly(e.target.checked)} className="accent-[#558B2F]"/>Con stock</label>
             <div className="flex rounded-full border border-[#d9ddd5]/80 bg-white/90 backdrop-blur-sm p-1"><button onClick={()=>setView("book")} className={`grid size-8 place-items-center rounded-full ${view==="book"?"bg-[#edf3e6] text-[#558B2F]":"text-[#7a8176]"}`} aria-label="Vista revista"><Grid2X2 size={15}/></button><button onClick={()=>setView("list")} className={`grid size-8 place-items-center rounded-full ${view==="list"?"bg-[#edf3e6] text-[#558B2F]":"text-[#7a8176]"}`} aria-label="Vista pedido rápido"><List size={16}/></button></div>
           </div>
         </div>
       </section>
 
-      {view==="book" ? <section className="py-6"><div className="mx-auto mb-4 flex max-w-[1360px] items-center justify-between px-5 text-[11px] text-[#6d7469] lg:px-10"><span>Catálogo editorial interactivo</span><span className="hidden sm:block">Arrastra una esquina o usa las flechas</span></div><TurnBook key={bookKey} pages={visiblePages} products={filtered} onProduct={selectProduct} onContact={requestAdvice}/>{filtered.length===0&&<Empty onReset={()=>{setCategory("all");setBrand("all");setStockOnly(false);setQuery("")}}/>}</section> :
+      {view==="book" ? <section className="py-6"><div className="mx-auto mb-4 flex max-w-[1360px] items-center justify-between px-5 text-[11px] text-[#6d7469] lg:px-10"><span>Catálogo editorial interactivo</span><span className="hidden sm:block">Arrastra una esquina o usa las flechas</span></div><TurnBook key={bookKey} pages={visiblePages} products={filtered} onProduct={selectProduct} onContact={requestAdvice}/>{filtered.length===0&&<Empty onReset={()=>{setCategory("all");setBrand("all");setStockOnly(false);setQuery("");setSize("all");setSubcategory("all")}}/>}</section> :
       <DistributorList products={filtered} cart={cart} onProduct={selectProduct} onAdd={addToCart} getBrand={getBrand}/>} 
 
       <section className="border-y border-[#dce1d7]/80 bg-white/80 backdrop-blur-md"><div className="mx-auto grid max-w-[1360px] gap-4 px-5 py-6 text-xs text-[#61685e] sm:grid-cols-3 lg:px-10"><span className="flex items-center gap-2"><Package size={17} className="text-[#558B2F]"/>Precios mayoristas claros</span><span className="flex items-center gap-2"><Sparkles size={17} className="text-[#558B2F]"/>Surtido editable por catálogo</span><span className="flex items-center gap-2"><MessageCircle size={17} className="text-[#558B2F]"/>Asesoría por sede</span></div></section>
@@ -112,13 +130,17 @@ export function CatalogApp() {
 }
 
 function DistributorList({products,cart,onProduct,onAdd,getBrand}:{products:Product[];cart:Cart;onProduct:(p:Product)=>void;onAdd:(p:Product,q:number)=>void;getBrand:(id:string)=>string}){
-  return <section className="mx-auto max-w-[1360px] px-5 py-7 lg:px-10"><div className="mb-5 flex items-center justify-between"><div><h2 className="text-2xl font-medium tracking-[-.04em]">Pedido rápido</h2><p className="mt-1 text-xs text-[#747b70]">Compara presentación, caja y stock sin abrir cada ficha.</p></div></div>{products.length?<div className="overflow-hidden rounded-2xl border border-[#dce1d7] bg-white"><div className="hidden grid-cols-[1.8fr_.7fr_.7fr_.7fr_.7fr_120px] gap-4 border-b bg-[#f7f8f5] px-5 py-3 text-[10px] font-semibold text-[#747b70] lg:grid"><span>Producto</span><span>SKU</span><span>Mayorista</span><span>Mínimo</span><span>Stock</span><span>Acción</span></div>{products.map(product=><div key={product.id} className="grid items-center gap-3 border-b border-[#e7e9e4] p-4 last:border-0 sm:grid-cols-[1fr_auto] lg:grid-cols-[1.8fr_.7fr_.7fr_.7fr_.7fr_120px] lg:gap-4 lg:px-5"><button onClick={()=>onProduct(product)} className="flex min-w-0 items-center gap-3 text-left"><span className="grid size-14 shrink-0 place-items-center rounded-xl bg-[#eff3e9]"><img src={product.image} alt="" className="h-12 w-12 object-contain"/></span><span className="min-w-0"><b className="block truncate text-sm">{product.name}</b><small className="text-[#7b8277]">{getBrand(product.brand)} · {product.presentation}</small></span></button><span className="hidden text-xs text-[#646b61] lg:block">{product.sku}</span><strong className="hidden text-sm lg:block">S/ {product.wholesalePrice.toFixed(2)}</strong><span className="hidden text-xs lg:block">{product.minOrder} u.</span><span className={`hidden text-xs lg:block ${product.stock===0?"text-red-600":product.stock<12?"text-amber-600":"text-[#558B2F]"}`}>{product.stock===0?"Agotado":`${product.stock} u.`}</span><button disabled={!product.stock} onClick={()=>onAdd(product,product.minOrder)} className="flex h-10 items-center justify-center gap-2 rounded-lg bg-[#7CB342] px-3 text-xs font-semibold disabled:opacity-35"><Plus size={14}/>{cart[product.id]?"Agregar más":"Agregar"}</button></div>)}</div>:<Empty/>}</section>;
+  const [page,setPage]=useState(0);
+  const totalPages=Math.ceil(products.length/50),currentPage=Math.min(page,Math.max(totalPages-1,0));
+  const shownProducts=products.slice(currentPage*50,currentPage*50+50);
+
+  return <section className="mx-auto max-w-[1360px] px-5 py-7 lg:px-10"><div className="mb-5 flex items-center justify-between"><div><h2 className="text-2xl font-medium tracking-[-.04em]">Pedido rápido</h2><p className="mt-1 text-xs text-[#747b70]">Compara presentación, caja y stock sin abrir cada ficha.</p></div></div>{products.length?<div className="overflow-hidden rounded-2xl border border-[#dce1d7] bg-white"><div className="hidden grid-cols-[1.8fr_.7fr_.7fr_.7fr_.7fr_120px] gap-4 border-b bg-[#f7f8f5] px-5 py-3 text-[10px] font-semibold text-[#747b70] lg:grid"><span>Producto</span><span>SKU</span><span>Mayorista</span><span>Mínimo</span><span>Stock</span><span>Acción</span></div>{shownProducts.map(product=><div key={product.id} className="grid items-center gap-3 border-b border-[#e7e9e4] p-4 last:border-0 sm:grid-cols-[1fr_auto] lg:grid-cols-[1.8fr_.7fr_.7fr_.7fr_.7fr_120px] lg:gap-4 lg:px-5"><button onClick={()=>onProduct(product)} className="flex min-w-0 items-center gap-3 text-left"><span className="grid size-14 shrink-0 place-items-center rounded-xl bg-[#eff3e9]"><img src={product.image} alt="" className="h-12 w-12 object-contain"/></span><span className="min-w-0"><b className="block truncate text-sm">{product.name}</b><small className="text-[#7b8277]">{getBrand(product.brand)} · {product.presentation}</small></span></button><span className="hidden text-xs text-[#646b61] lg:block">{product.sku}</span><strong className="hidden text-sm lg:block">S/ {product.wholesalePrice.toFixed(2)}</strong><span className="hidden text-xs lg:block">{product.minOrder} u.</span><span className={`hidden text-xs lg:block ${product.stock===0?"text-red-600":product.stock<12?"text-amber-600":"text-[#558B2F]"}`}>{product.stock===0?"Agotado":`${product.stock} u.`}</span><button disabled={!product.stock} onClick={()=>onAdd(product,product.minOrder)} className="flex h-10 items-center justify-center gap-2 rounded-lg bg-[#7CB342] px-3 text-xs font-semibold disabled:opacity-35"><Plus size={14}/>{cart[product.id]?"Agregar más":"Agregar"}</button></div>)}</div>:<Empty/>}{totalPages>1&&<div className="mt-5 flex items-center justify-center gap-5 text-xs"><button disabled={!currentPage} onClick={()=>setPage(currentPage-1)} className="rounded-lg border bg-white px-4 py-2 disabled:opacity-30">Anterior</button><span>{currentPage+1} / {totalPages}</span><button disabled={currentPage+1>=totalPages} onClick={()=>setPage(currentPage+1)} className="rounded-lg border bg-white px-4 py-2 disabled:opacity-30">Siguiente</button></div>}</section>;
 }
 
 function Empty({onReset}:{onReset?:()=>void}){return <div className="mx-auto my-10 max-w-lg rounded-2xl border border-[#dce1d7] bg-white p-10 text-center"><Search className="mx-auto text-[#558B2F]"/><h3 className="mt-4 text-xl font-medium">No hay productos con estos filtros.</h3><p className="mt-2 text-sm text-[#6d7469]">Prueba otra categoría, marca o disponibilidad.</p>{onReset&&<button onClick={onReset} className="mt-5 rounded-lg bg-[#7CB342] px-5 py-3 text-xs font-semibold">Ver todo el catálogo</button>}</div>}
 
 function SearchPalette({products,getBrand,getSubcategory,onClose,onSelect}:{products:Product[];getBrand:(id:string)=>string;getSubcategory:(id:string)=>string;onClose:()=>void;onSelect:(p:Product)=>void}){
-  const [value,setValue]=useState(""); const matches=products.filter(p=>`${p.name} ${p.sku} ${getBrand(p.brand)} ${getSubcategory(p.subcategory)}`.toLowerCase().includes(value.toLowerCase())).slice(0,8);
+  const [value,setValue]=useState(""); const matches=products.filter(p=>normalizeText(`${p.name} ${p.sku} ${getBrand(p.brand)} ${getSubcategory(p.subcategory)}`).includes(normalizeText(value))).slice(0,8);
   useEffect(()=>{const h=(e:KeyboardEvent)=>e.key==="Escape"&&onClose();addEventListener("keydown",h);return()=>removeEventListener("keydown",h)},[onClose]);
   return <div className="fixed inset-0 z-[120] flex justify-center bg-[#172014]/60 p-4 pt-[10vh] backdrop-blur-sm" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className="h-fit w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl"><div className="flex items-center gap-3 border-b px-5"><Search size={20} className="text-[#558B2F]"/><input autoFocus value={value} onChange={e=>setValue(e.target.value)} placeholder="Busca por nombre, SKU, marca o subcategoría…" className="h-16 flex-1 bg-transparent text-sm outline-none"/><button onClick={onClose} aria-label="Cerrar"><X size={18}/></button></div><div className="max-h-[60vh] overflow-auto p-2">{matches.map(product=><button key={product.id} onClick={()=>onSelect(product)} className="flex w-full items-center gap-4 rounded-xl p-3 text-left hover:bg-[#f0f4eb]"><span className="grid size-14 place-items-center rounded-lg bg-[#eef2e8]"><img src={product.image} alt="" className="size-12 object-contain"/></span><span className="min-w-0 flex-1"><b className="block truncate text-sm">{product.name}</b><small className="text-[#747b70]">{product.sku} · {getBrand(product.brand)} · {product.presentation}</small></span><span className="text-right"><b className="block text-sm">S/ {product.wholesalePrice.toFixed(2)}</b><small className={product.stock?"text-[#558B2F]":"text-red-600"}>{product.stock?`${product.stock} en stock`:"Agotado"}</small></span><ArrowRight size={16}/></button>)}{!matches.length&&<p className="p-10 text-center text-sm text-[#747b70]">No encontramos coincidencias.</p>}</div><div className="border-t bg-[#f8f9f6] px-5 py-3 text-[10px] text-[#747b70]">Consejo: escribe el SKU para llegar directo al producto.</div></div></div>
 }

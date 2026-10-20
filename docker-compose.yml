@@ -1,18 +1,63 @@
 services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: samada
+      POSTGRES_USER: samada
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
+    volumes:
+      - samada_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U samada -d samada"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+  migrate:
+    build:
+      context: .
+      target: tools
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://samada:${POSTGRES_PASSWORD}@db:5432/samada
+    command: ["npm", "run", "db:migrate"]
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
   app:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: samada_app
+      target: runner
     restart: unless-stopped
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
+    env_file: .env
     environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - HOSTNAME=0.0.0.0
+      DATABASE_URL: postgresql://samada:${POSTGRES_PASSWORD}@db:5432/samada
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
     volumes:
       - ./data:/app/data
-
-# Si tu VPS ya tiene Caddy o Nginx en el host o en otro contenedor,
-# este contenedor corre en el puerto 3001 sin interferir con tu primera app.
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+  worker:
+    build:
+      context: .
+      target: tools
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://samada:${POSTGRES_PASSWORD}@db:5432/samada
+      NODE_ENV: production
+    restart: unless-stopped
+    command: ["npm", "run", "worker"]
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+volumes:
+  samada_pg:

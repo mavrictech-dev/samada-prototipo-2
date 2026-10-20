@@ -1,165 +1,75 @@
 "use client";
-
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, MessageCircle, PackageCheck } from "lucide-react";
-import type { CatalogPage, Product } from "@/lib/types";
-
-declare global {
-  interface Window {
-    jQuery?: JQueryTurnFactory;
-    $?: JQueryTurnFactory;
-  }
+import { useCallback,useEffect,useMemo,useRef,useState } from "react";
+import { ChevronLeft,ChevronRight,MessageCircle,PackageCheck } from "lucide-react";
+import type { CatalogPage,Product } from "@/lib/types";
+declare global {interface Window {jQuery?:JQueryTurnFactory;$?:JQueryTurnFactory;}}
+type TurnCommand=string|Record<string,unknown>;
+type JQueryTurnInstance={turn:(command:TurnCommand,...args:unknown[])=>unknown};
+type JQueryTurnFactory=((element:HTMLElement)=>JQueryTurnInstance)&{fn?:{turn?:unknown}};
+type Sheet={id:string;label:string;node:React.ReactNode};
+const scripts=new Map<string,Promise<void>>();
+function loadScript(src:string){
+ if(scripts.has(src))return scripts.get(src)!;
+ const promise=new Promise<void>((resolve,reject)=>{const found=document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);if(found?.dataset.loaded==='true')return resolve();const script=found||document.createElement('script');script.src=src;script.async=false;script.addEventListener('load',()=>{script.dataset.loaded='true';resolve();},{once:true});script.addEventListener('error',()=>{scripts.delete(src);reject(new Error('No se pudo cargar la revista.'));},{once:true});if(!found)document.body.appendChild(script);});scripts.set(src,promise);return promise;
 }
-
-type TurnCommand = string | Record<string, unknown>;
-type JQueryTurnInstance = { turn: (command: TurnCommand, ...args: unknown[]) => unknown };
-type JQueryTurnFactory = ((element: HTMLElement) => JQueryTurnInstance) & { fn?: { turn?: unknown } };
-
-type Sheet = { id: string; label: string; node: React.ReactNode };
-
-function loadScript(src: string) {
-  return new Promise<void>((resolve, reject) => {
-    const found = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
-    if (found?.dataset.loaded === "true") return resolve();
-    const script = found || document.createElement("script");
-    script.src = src; script.async = false;
-    script.onload = () => { script.dataset.loaded = "true"; resolve(); };
-    script.onerror = () => reject(new Error(`No se pudo cargar ${src}`));
-    if (!found) document.body.appendChild(script);
+function PageHeader({label}:{label:string}){return <div className="mb-4 flex items-center justify-between gap-4 text-[9px] text-[#747b70]"><img src="/assets/samada-logo.webp" alt="Samada" className="w-20"/><span className="text-right">{label}</span></div>;}
+export function TurnBook({pages,products,onProduct,onContact}:{pages:CatalogPage[];products:Product[];onProduct:(p:Product)=>void;onContact:()=>void}){
+ const bookRef=useRef<HTMLDivElement>(null),sourceRef=useRef<HTMLDivElement>(null);
+ const [segment,setSegment]=useState(0),[active,setActive]=useState(2),[ready,setReady]=useState(false),[mobile,setMobile]=useState(false),[dimensions,setDimensions]=useState({width:920,height:652}),[error,setError]=useState('');
+ const sheets=useMemo<Sheet[]>(()=>{
+  const output:Sheet[]=[
+   {id:'cover',label:'Portada',node:<div className="book-photo-page"><img src="/assets/editorial.png" alt="Colección de cuidado Samada"/><div className="absolute inset-0 flex flex-col bg-gradient-to-b from-black/20 via-transparent to-black/40 p-[9%] text-white"><img src="/assets/samada-logo-negative.webp" alt="Samada" className="w-36"/><span className="mt-3 text-[9px] tracking-[.2em]">CATÁLOGO PARA DISTRIBUIDORES</span><h2 className="mt-auto text-3xl leading-tight tracking-tight">Productos que<br/>mueven tu negocio.</h2></div></div>},
+   {id:'welcome',label:'Bienvenida',node:<div className="book-page"><PageHeader label="Canal distribuidores"/><PackageCheck size={34} className="mt-[10%] text-[#558B2F]"/><h2 className="mt-6 text-4xl leading-[1.05] tracking-[-.06em]">Tu catálogo.<br/>Tu próxima venta.</h2><p className="mt-6 text-sm leading-6 text-[#596056]">Marcas, tamaños y presentaciones para armar una selección que se adapte a tu negocio.</p><button data-contact="true" className="mt-7 flex w-fit items-center gap-2 rounded-xl bg-[#7CB342] px-5 py-3 text-xs text-[#18240e]"><MessageCircle size={16}/>Hablar con un asesor</button><span className="mt-auto border-t pt-4 text-[10px] text-[#747b70]">{products.length} productos en esta selección</span></div>}
+  ];
+  const lookup=new Map(products.map(p=>[p.id,p]));
+  pages.filter(p=>p.published&&p.type==='products').forEach(page=>{
+   const items=page.productIds.map(id=>lookup.get(id)).filter((p):p is Product=>!!p);
+   if(!items.length)return;const [hero,...rest]=items;
+   output.push({id:`${page.id}-hero`,label:page.title,node:<div className={`book-page page-theme-${page.theme}`}><PageHeader label={page.subtitle}/><span className="w-fit rounded-full bg-[#7CB342] px-3 py-1 text-[9px] text-[#24301a]">Selección para tu negocio</span><h2 className="mt-3 text-2xl leading-tight tracking-[-.05em]">{page.title}</h2><button data-product-id={hero.id} className="my-3 grid min-h-0 flex-1 place-items-center overflow-hidden"><img src={hero.image} alt={hero.name} loading="lazy" className="max-h-52 w-full object-contain"/></button><h3 className="line-clamp-2 text-base font-semibold">{hero.name}</h3><p className="mt-1 text-[9px] text-[#6f766b]">{hero.sku} · {hero.presentation} · mínimo {hero.minOrder} u.</p><div className="mt-4 flex items-end justify-between gap-2"><div><small className="text-[8px] text-[#6f766b]">Precio distribuidor</small><p className="text-xl font-semibold">S/ {hero.wholesalePrice.toFixed(2)}</p></div><button data-product-id={hero.id} className="rounded-lg bg-[#7CB342] px-4 py-2 text-[9px] text-[#25301c]">Ver producto</button></div></div>});
+   for(let offset=0;offset<rest.length;offset+=6){
+    const chunk=rest.slice(offset,offset+6);
+    output.push({id:`${page.id}-grid-${offset}`,label:page.title,node:<div className="book-page"><PageHeader label={page.subtitle}/><h2 className="text-2xl tracking-[-.04em]">{page.title}</h2><div className="mt-4 grid min-h-0 flex-1 grid-cols-2 gap-3">{chunk.map(p=><button key={p.id} data-product-id={p.id} className="flex min-h-0 flex-col border-b border-[#e2e5de] pb-2 text-left"><span className="grid h-20 w-full place-items-center overflow-hidden rounded-lg bg-[#f1f4ec] p-1"><img src={p.image} alt="" loading="lazy" className="h-full w-full object-contain"/></span><b className="mt-2 line-clamp-2 text-[9px] leading-tight">{p.name}</b><span className="mt-auto flex w-full justify-between pt-2 text-[8px] text-[#747b70]"><span>{p.sku}</span><strong>S/ {p.wholesalePrice.toFixed(2)}</strong></span></button>)}</div><span className="mt-3 text-[8px] text-[#747b70]">Presentaciones y stock sujetos a confirmación</span></div>});
+   }
   });
-}
-
-function PageHeader({ label }: { label: string }) {
-  return <div className="mb-5 flex items-center justify-between text-[10px] text-[#747b70]"><img src="/assets/samada-logo.webp" alt="Samada" className="w-20"/><span>{label}</span></div>;
-}
-
-export function TurnBook({ pages, products, onProduct, onContact }: {
-  pages: CatalogPage[];
-  products: Product[];
-  onProduct: (product: Product) => void;
-  onContact: () => void;
-}) {
-  const bookRef = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState(2);
-  const [ready, setReady] = useState(false);
-  const [mobile, setMobile] = useState(false);
-  const [dimensions, setDimensions] = useState({ width: 920, height: 652 });
-  const syncAccessibility = useCallback((page: number, single: boolean) => {
-    const visible = single ? [page] : page % 2 === 0 ? [page,page+1] : [page-1,page];
-    bookRef.current?.querySelectorAll<HTMLElement>(".book-sheet").forEach((sheet,index) => {
-      const shown = visible.includes(index + 1);
-      sheet.inert = !shown;
-      sheet.setAttribute("aria-hidden",String(!shown));
-    });
-  },[]);
-
-  const sheets = useMemo<Sheet[]>(() => {
-    const result: Sheet[] = [
-      { id:"cover-photo", label:"Portada", node:<div className="book-photo-page"><img src="/assets/editorial.png" alt="Colección de cuidado Samada"/><div className="absolute inset-0 flex flex-col bg-gradient-to-b from-black/10 via-transparent to-black/35 p-[9%] text-white"><img src="/assets/samada-logo-negative.webp" alt="Samada" className="w-36"/><span className="mt-2 text-[9px] tracking-[.28em]">CATÁLOGO MAYORISTA / 2026</span><h2 className="mt-auto text-3xl font-medium leading-[1.08] tracking-[-.05em]">Productos que<br/>mueven tu negocio.</h2><p className="mt-4 text-[10px]">Selección para distribuidores</p></div></div> },
-      { id:"cover-copy", label:"Bienvenida", node:<div className="book-page"><PageHeader label="Distribuidores · 2026"/><div className="mt-[12%] text-[#558B2F]"><PackageCheck size={36} strokeWidth={1.3}/></div><h2 className="mt-6 text-[clamp(30px,4vw,54px)] font-medium leading-[1.02] tracking-[-.065em]">Tu catálogo.<br/>Tu próxima venta.</h2><p className="mt-6 max-w-sm text-sm leading-6 text-[#596056]">Descubre precios mayoristas, pedidos mínimos y una selección organizada para encontrar cada producto sin fricción.</p><button onClick={onContact} className="mt-8 inline-flex items-center gap-2 rounded-xl bg-[#7CB342] px-5 py-3 text-xs font-semibold text-[#18240e]"><MessageCircle size={16}/>Hablar con un asesor</button><div className="mt-auto border-t border-[#e0e4dc] pt-5 text-[10px] text-[#747b70]">Compra inteligente para tu punto de venta.</div></div> }
-    ];
-    pages.filter(page => page.published && page.type === "products").forEach(page => {
-      const items = page.productIds.map(id => products.find(product => product.id === id)).filter(Boolean) as Product[];
-      if (!items.length) return;
-      const [hero, ...rest] = items;
-      result.push({ id:`${page.id}-hero`, label:page.title, node:
-        <div className={`book-page page-theme-${page.theme}`}><PageHeader label={page.subtitle}/><span className="inline-flex rounded-full bg-[#7CB342] px-3 py-1 text-[9px] font-semibold">Selección para tu negocio</span><h2 className="mt-2 text-xl font-medium leading-[1.08] tracking-[-.055em] sm:text-2xl md:mt-4 md:text-3xl">{page.title}</h2><button className="my-2 grid min-h-0 flex-1 place-items-center overflow-hidden md:my-4" onClick={()=>onProduct(hero)}><img src={hero.image} alt={hero.name} className="max-h-44 w-auto max-w-full object-contain drop-shadow-xl sm:max-h-52 md:max-h-64"/></button><h3 className="line-clamp-1 text-base font-semibold md:text-lg">{hero.name}</h3><p className="mt-0.5 text-[9px] text-[#6f766b] md:text-[10px]">{hero.sku} · {hero.presentation} · mínimo {hero.minOrder} u.</p><div className="mt-3 flex items-end justify-between md:mt-4"><div><span className="text-[8px] text-[#6f766b] md:text-[9px]">Precio distribuidor</span><p className="text-xl font-semibold md:text-2xl">S/ {hero.wholesalePrice.toFixed(2)}</p></div><button onClick={()=>onProduct(hero)} className="rounded-lg bg-[#7CB342] px-3.5 py-2 text-[9px] font-semibold md:px-4 md:py-2.5 md:text-[10px]">Ver producto</button></div></div> });
-      result.push({ id:`${page.id}-grid`, label:page.title, node:
-        <div className="book-page"><PageHeader label={page.subtitle}/><h2 className="text-xl font-medium tracking-[-.04em] sm:text-2xl">Listos para rotar.</h2><div className="mt-3 grid min-h-0 flex-1 grid-cols-2 gap-2 sm:gap-3 md:mt-5">{rest.slice(0,6).map(product=><button key={product.id} onClick={()=>onProduct(product)} className="group relative flex min-h-0 flex-col border-b border-[#e2e5de] pb-1.5 text-left md:pb-2"><span className="absolute right-1 top-1 z-10 grid size-5 place-items-center rounded-full bg-white text-xs font-bold text-[#333] shadow-sm md:size-6 md:text-sm">+</span><span className="grid h-16 w-full place-items-center overflow-hidden rounded-md bg-[#f1f4ec] p-1 sm:h-20 md:h-24"><img src={product.image} alt="" className="h-full w-full object-contain transition-transform group-hover:-rotate-3 group-hover:scale-105"/></span><span className="mt-1 line-clamp-2 text-[9px] font-semibold leading-tight md:text-[10px]">{product.name}</span><span className="mt-auto flex justify-between pt-1 text-[8px] text-[#747b70]"><span>{product.sku}</span><b className="text-[#30352f]">S/ {product.wholesalePrice.toFixed(2)}</b></span></button>)}</div><div className="mt-2 flex justify-between text-[8px] text-[#747b70] md:mt-4 md:text-[9px]"><span>{items.length} productos en esta página</span><span>Stock sujeto a confirmación</span></div></div> });
-    });
-    result.push(
-      { id:"closing", label:"Asesoría", node:<div className="book-page"><PageHeader label="Tu siguiente pedido"/><h2 className="mt-[15%] text-4xl font-medium leading-[1.05] tracking-[-.06em]">Construyamos una selección que sí se mueve.</h2><p className="mt-6 max-w-sm text-sm leading-6 text-[#596056]">Comparte tu lista con una sede y recibe apoyo para ajustar cantidades, disponibilidad y surtido.</p><button onClick={onContact} className="mt-8 inline-flex items-center gap-2 rounded-xl border border-[#252b23] px-5 py-3 text-xs font-semibold"><MessageCircle size={16}/>Solicitar asesoría</button><div className="mt-auto text-2xl font-semibold tracking-[-.07em] text-[#558B2F]">samada</div></div> },
-      { id:"back", label:"Contraportada", node:<div className="book-back"><img src="/assets/samada-logo.webp" alt="Samada" className="w-52"/><p className="mt-3 text-xs">Bienestar que se siente.<br/>Negocios que crecen.</p></div> }
-    );
-    return result;
-  }, [pages, products, onContact, onProduct]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const bookElement = bookRef.current;
-    const setup = async () => {
-      await loadScript("/vendor/jquery-1.7.js");
-      await loadScript("/vendor/turn.js");
-      if (cancelled || !bookElement || !window.jQuery?.fn?.turn) return;
-      const isMobile = window.innerWidth < 900;
-      setMobile(isMobile);
-      const stage = bookElement.closest<HTMLElement>(".relative") || bookElement.parentElement;
-      const stageWidth = stage?.clientWidth || window.innerWidth;
-      const available = isMobile ? Math.min(stageWidth - 28, 430) : Math.min(stageWidth - 120, 920);
-      const width = Math.max(Math.round(available), 280);
-      const height = Math.round(width / (isMobile ? .705 : 1.41));
-      setDimensions({ width, height });
-      const $book = window.jQuery(bookElement);
-      if ($book.turn("is")) $book.turn("destroy");
-      $book.turn({
-        width,
-        height,
-        display: isMobile ? "single" : "double",
-        page: 2,
-        autoCenter: !isMobile,
-        elevation: isMobile ? 0 : 50,
-        gradients: !isMobile,
-        duration: isMobile ? 350 : 600,
-        turnCorners: isMobile ? "r,l" : "bl,br",
-        when: {
-          turning: (_: unknown, page: number) => {
-            setActive(page);
-            syncAccessibility(page, isMobile);
-          },
-          turned: (_: unknown, page: number) => {
-            setActive(page);
-            syncAccessibility(page, isMobile);
-          }
-        }
-      });
-      syncAccessibility(2, isMobile);
-      setReady(true);
-    };
-    setup().catch(()=>setReady(false));
-    return () => {
-      cancelled = true;
-      try { const $book = bookElement && window.jQuery?.(bookElement); if ($book?.turn("is")) $book.turn("destroy"); } catch { /* Turn.js cleanup */ }
-    };
-  }, [sheets.length,syncAccessibility]);
-
-  useEffect(() => {
-    const resize = () => {
-      const bookElement = bookRef.current;
-      if (!bookElement || !window.jQuery?.fn?.turn) return;
-      const nextMobile = window.innerWidth < 900;
-      const stage = bookElement.closest<HTMLElement>(".relative") || bookElement.parentElement;
-      const stageWidth = stage?.clientWidth || window.innerWidth;
-      const available = nextMobile ? Math.min(stageWidth - 28, 430) : Math.min(stageWidth - 120, 920);
-      const width = Math.max(Math.round(available), 280);
-      const height = Math.round(width / (nextMobile ? .705 : 1.41));
-      setDimensions({ width, height });
-      const $book = window.jQuery(bookElement);
-      try {
-        $book.turn("display", nextMobile ? "single" : "double");
-        $book.turn("size", width, height);
-        setMobile(nextMobile);
-        syncAccessibility(active, nextMobile);
-      } catch { /* not initialized */ }
-    };
-    window.addEventListener("resize",resize);
-    return ()=>window.removeEventListener("resize",resize);
-  },[active,syncAccessibility]);
-
-  const move = (direction:"next"|"previous") => { const bookElement=bookRef.current; if(!bookElement)return; try { window.jQuery?.(bookElement).turn(direction); } catch { /* no-op */ } };
-  const view = mobile ? [active] : active % 2 === 0 ? [active,active+1] : [active-1,active];
-  const canPrevious = active > 1;
-  const canNext = active < sheets.length;
-  const isCover = !mobile && active === 1;
-  const isBack = !mobile && active === sheets.length;
-  const frameClass = mobile ? "book-frame-single" : isCover ? "book-frame-cover" : isBack ? "book-frame-back" : "book-frame-spread";
-
-  return <div className="w-full">
-    <div className="relative mx-auto flex max-w-[1100px] items-center justify-center px-3 sm:px-8 md:px-16">
-      <button onClick={()=>move("previous")} disabled={!canPrevious} className="book-arrow left-0 hidden sm:grid" aria-label="Página anterior"><ChevronLeft/></button>
-      <div className={`book-frame ${frameClass}`} style={{ width: dimensions.width, height: dimensions.height }}><div ref={bookRef} className="flipbook">{sheets.map((sheet,index)=><article key={sheet.id} className="book-sheet" aria-label={`Página ${index+1}: ${sheet.label}`}>{sheet.node}</article>)}</div></div>
-      <button onClick={()=>move("next")} disabled={!canNext} className="book-arrow right-0 hidden sm:grid" aria-label="Página siguiente"><ChevronRight/></button>
-    </div>
-    <div className="mx-auto mt-6 flex max-w-3xl items-center justify-center gap-4 text-xs text-[#6f766b]"><button onClick={()=>move("previous")} disabled={!canPrevious} className="disabled:opacity-30 disabled:pointer-events-none" aria-label="Retroceder una página"><ChevronLeft size={18}/></button><span className="min-w-24 text-center font-medium text-[#353a33]">{view.filter(n=>n>0&&n<=sheets.length).map(n=>String(n).padStart(2,"0")).join("–")} / {String(sheets.length).padStart(2,"0")}</span><button onClick={()=>move("next")} disabled={!canNext} className="disabled:opacity-30 disabled:pointer-events-none" aria-label="Avanzar una página"><ChevronRight size={18}/></button><div className="ml-3 flex gap-1">{sheets.map((sheet,index)=><button key={sheet.id} onClick={()=>{const bookElement=bookRef.current;if(!bookElement)return;try{window.jQuery?.(bookElement).turn("page",index+1)}catch{}}} className={`h-1.5 rounded-full transition-all ${view.includes(index+1)?"w-5 bg-[#558B2F]":"w-1.5 bg-[#b9beb5]"}`} aria-label={`Ir a página ${index+1}`}/>)}</div></div>
-    {!ready && <p className="mt-3 text-center text-xs text-[#747b70]">Preparando la revista…</p>}
-  </div>;
+  output.push({id:'back',label:'Contacto',node:<div className="book-back"><img src="/assets/samada-logo.webp" alt="Samada" className="w-52"/><p className="mt-6 text-sm">Bienestar que se siente.<br/>Negocios que crecen.</p><button data-contact="true" className="mt-8 flex items-center gap-2 rounded-xl bg-[#7CB342] px-5 py-3 text-xs"><MessageCircle size={16}/>Cotizar mi selección</button></div>});
+  if(output.length%2)output.push({id:'blank',label:'Samada',node:<div className="book-page"><PageHeader label="Gracias por elegirnos"/></div>});
+  return output;
+ },[pages,products]);
+ const segmentCount=Math.ceil(sheets.length/16),currentSegment=Math.min(segment,segmentCount-1);
+ const visibleSheets=useMemo(()=>sheets.slice(currentSegment*16,currentSegment*16+16),[sheets,currentSegment]);
+ const sync=useCallback((page:number,single:boolean)=>{
+  const shown=single?[page]:page%2===0?[page,page+1]:[page-1,page];
+  bookRef.current?.querySelectorAll<HTMLElement>('.book-sheet').forEach(sheet=>{const visible=shown.includes(Number(sheet.dataset.page));sheet.inert=!visible;sheet.setAttribute('aria-hidden',String(!visible));});
+ },[]);
+ useEffect(()=>{
+  let cancelled=false;const element=bookRef.current;const source=sourceRef.current;if(!element||!source)return;
+  setReady(false);setError('');
+  // React owns the hidden templates. Turn.js owns only these disposable DOM clones.
+  element.replaceChildren(...Array.from(source.children).map(child=>child.cloneNode(true)));
+  const click=(event:MouseEvent)=>{const target=event.target instanceof Element?event.target.closest<HTMLElement>('[data-product-id],[data-contact]'):null;if(!target)return;if(target.dataset.productId){const product=products.find(p=>p.id===target.dataset.productId);if(product)onProduct(product);}else onContact();};
+  element.addEventListener('click',click);
+  const start=async()=>{
+   await loadScript('/vendor/jquery-1.7.js');await loadScript('/vendor/turn.js');if(cancelled||!window.jQuery?.fn?.turn)return;
+   const single=window.innerWidth<900;setMobile(single);
+   const available=(element.closest<HTMLElement>('[data-book-stage]')?.clientWidth||window.innerWidth)-(single?28:120);
+   const width=Math.max(260,Math.min(available,single?430:920)),height=Math.round(width/(single?.705:1.41));
+   setDimensions({width,height});const initial=currentSegment===0?Math.min(2,visibleSheets.length):1;setActive(initial);
+   window.jQuery(element).turn({width,height,display:single?'single':'double',page:initial,autoCenter:!single,elevation:single?0:50,gradients:!single,duration:single?350:600,when:{turning:(_:unknown,page:number)=>{setActive(page);sync(page,window.innerWidth<900);},turned:(_:unknown,page:number)=>{setActive(page);sync(page,window.innerWidth<900);}}});sync(initial,single);setReady(true);
+  };
+  void start().catch(e=>{if(!cancelled)setError(e.message);});
+  return ()=>{cancelled=true;element.removeEventListener('click',click);try{const book=window.jQuery?.(element);if(book?.turn('is'))book.turn('destroy');}catch{}element.replaceChildren();};
+ },[visibleSheets,currentSegment,products,onProduct,onContact,sync]);
+ useEffect(()=>{const resize=()=>{const element=bookRef.current;if(!element||!window.jQuery?.fn?.turn)return;const single=window.innerWidth<900;const available=(element.closest<HTMLElement>('[data-book-stage]')?.clientWidth||window.innerWidth)-(single?28:120);const width=Math.max(260,Math.min(available,single?430:920)),height=Math.round(width/(single?.705:1.41));setDimensions({width,height});setMobile(single);try{const book=window.jQuery(element);if(book.turn('is')){book.turn('display',single?'single':'double');book.turn('size',width,height);sync(active,single);}}catch{}};window.addEventListener('resize',resize);return()=>window.removeEventListener('resize',resize);},[active,sync]);
+ const move=(direction:'next'|'previous')=>{try{if(bookRef.current)window.jQuery?.(bookRef.current).turn(direction);}catch{}};
+ const view=mobile?[active]:active%2===0?[active,active+1]:[active-1,active];
+ return <div className="w-full">
+  <div hidden aria-hidden="true" ref={sourceRef}>{visibleSheets.map((sheet,index)=><article className="book-sheet" data-page={index+1} key={sheet.id} aria-label={`Página ${currentSegment*16+index+1}: ${sheet.label}`}>{sheet.node}</article>)}</div>
+  <div data-book-stage="true" className="relative mx-auto flex max-w-[1100px] items-center justify-center px-3 sm:px-8 md:px-16">
+   <button onClick={()=>move('previous')} disabled={active<=1} className="book-arrow left-0 hidden sm:grid disabled:opacity-30" aria-label="Página anterior"><ChevronLeft/></button>
+   <div className={`book-frame ${mobile?'book-frame-single':'book-frame-spread'}`} style={{width:dimensions.width,height:dimensions.height}}><div ref={bookRef} className="flipbook"/></div>
+   <button onClick={()=>move('next')} disabled={active>=visibleSheets.length} className="book-arrow right-0 hidden sm:grid disabled:opacity-30" aria-label="Página siguiente"><ChevronRight/></button>
+  </div>
+  <div className="mx-auto mt-6 flex max-w-3xl flex-wrap items-center justify-center gap-4 text-xs text-[#6f766b]"><button aria-label="Retroceder una página" disabled={active<=1} onClick={()=>move('previous')}><ChevronLeft size={18}/></button><span>{view.filter(n=>n>0&&n<=visibleSheets.length).map(n=>String(currentSegment*16+n).padStart(2,'0')).join('–')} / {sheets.length}</span><button aria-label="Avanzar una página" disabled={active>=visibleSheets.length} onClick={()=>move('next')}><ChevronRight size={18}/></button>{segmentCount>1&&<label className="flex items-center gap-2">Sección<select aria-label="Sección de la revista" className="rounded-lg border bg-transparent px-3 py-2" value={currentSegment} onChange={e=>setSegment(Number(e.target.value))}>{Array.from({length:segmentCount},(_,i)=><option key={i} value={i}>{i+1} de {segmentCount}</option>)}</select></label>}</div>
+  {!ready&&<p className="mt-3 text-center text-xs">{error||'Preparando la revista…'}</p>}
+ </div>;
 }

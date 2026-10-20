@@ -1,0 +1,20 @@
+{
+  "xlsx": "C:\\Users\\maxmo\\Downloads\\samada\\Samada Landing 2\\samada-commerce\\docs\\plantillas\\Samada-Plantilla-Catalogo-v1.xlsx",
+  "hojas": [
+    "Instrucciones",
+    "Productos",
+    "Ejemplos",
+    "Campos",
+    "Marcas",
+    "Categorias",
+    "Subcategorias",
+    "Tamanos",
+    "MarcaCategoria",
+    "MarcaSubcategoria",
+    "MarcaTamano"
+  ],
+  "columnas": 20,
+  "filas_preparadas": 1500,
+  "formulas": 0,
+  "verificacion": "OK"
+}

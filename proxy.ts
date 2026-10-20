@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-export function middleware(request: NextRequest) {
-  const host = request.headers.get("host") || "";
+export function proxy(request: NextRequest) {
+  const host = request.nextUrl.hostname.toLowerCase();
   const { pathname } = request.nextUrl;
 
   // Ignorar archivos estáticos, api y recursos internos de Next
@@ -16,8 +16,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const isGestionDomain = host.startsWith("gestion.") || host.includes("gestion.samadaperu.com");
-  const isProdCatalog = host.includes("samadaperu.com") && !isGestionDomain;
+  const isGestionDomain = host === "gestion.samadaperu.com";
+  const isProdCatalog = ["samadaperu.com", "www.samadaperu.com"].includes(host);
 
   // 1. Si está en el subdominio de gestión (gestion.samadaperu.com)
   if (isGestionDomain) {

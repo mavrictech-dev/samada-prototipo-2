@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM node:24-alpine AS base
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -16,7 +16,12 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-RUN npm run build
+RUN BETTER_AUTH_SECRET=build-only-unused-secret-never-used-at-runtime npm run build
+
+FROM builder AS tools
+RUN mkdir -p /app/data && chown -R 1001:1001 /app/data
+USER 1001:1001
+CMD ["npm", "run", "worker"]
 
 # Imagen de producción final mínima
 FROM base AS runner

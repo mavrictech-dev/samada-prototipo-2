@@ -1,0 +1,4 @@
+import { authorize } from "@/server/access";
+import { template } from "@/server/imports";
+import { errorResponse } from "@/server/errors";
+export async function GET(request:Request){try{const url=new URL(request.url),exportData=url.searchParams.get('export')==='1';const user=await authorize(request.headers,exportData?'products.export':'imports.template');const format=url.searchParams.get('format')==='csv'?'csv':'xlsx';return new Response(new Uint8Array(await template(user,format,exportData)),{headers:{'Content-Type':format==='csv'?'text/csv; charset=utf-8':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','Content-Disposition':`attachment; filename="Samada-${exportData?'Productos':'Plantilla'}.${format}"`,'Cache-Control':'no-store'}});}catch(error){return errorResponse(error);}}

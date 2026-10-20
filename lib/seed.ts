@@ -3559,6 +3559,8 @@ export const seedState: CmsState = {
   categories,
   subcategories,
   brands,
+  sizes: [{id:"sin-tamano",code:"SIN-TAMANO",name:"Sin tamaño",active:true,type:"text",position:999}],
+  sort: "brand-category-size",
   branches: [
     { id: "central", name: "Sede Central (Lima)", phone: "", address: "Av. Principal de Distribución 1040" },
     { id: "norte", name: "Sede Norte (Chiclayo/Trujillo)", phone: "", address: "Zona Industrial Norte Lote 12" }
