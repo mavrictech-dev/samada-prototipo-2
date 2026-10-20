@@ -7,8 +7,10 @@ flock -n 9 || { echo "Ya hay un despliegue en curso."; exit 1; }
 command -v docker >/dev/null || { echo "Instala Docker Engine y Compose en el servidor antes de desplegar."; exit 1; }
 command -v curl >/dev/null || { echo "Instala curl en el servidor."; exit 1; }
 docker compose version >/dev/null
+docker run --rm -v "$PWD:/workspace" -w /workspace -e DEPLOY_RESEND_API_KEY -e DEPLOY_ADMIN_EMAIL node:24-alpine node scripts/bootstrap-production.mjs
 test -f .env || { echo "Falta .env de producción. Consulta docs/DESPLIEGUE-CONTINUO.md."; exit 1; }
 chmod 600 .env
+docker run --rm -v "$PWD:/workspace:ro" -w /workspace node:24-alpine node --env-file=.env scripts/validate-production.mjs
 compose=(docker compose --project-name samada)
 "${compose[@]}" config --quiet
 echo "[1/6] Construyendo aplicación y procesador; se mantiene la versión actual durante la compilación..."
@@ -31,6 +33,7 @@ test -s "$backup"
 if [ "$(id -u)" = 0 ]; then chown 1001:1001 "$backup"; fi
 echo "[4/6] Aplicando migración transaccional..."
 "${compose[@]}" run --rm --no-deps migrate
+"${compose[@]}" run --rm --no-deps migrate npm run admin:ensure
 echo "[5/6] Activando versión y verificando aplicación y trabajador..."
 export APP_REVISION
 APP_REVISION=$(git rev-parse HEAD)

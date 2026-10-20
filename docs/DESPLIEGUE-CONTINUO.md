@@ -4,7 +4,7 @@ Repositorio: https://github.com/mavrictech-dev/samada-prototipo-2
 
 Los cambios en `main` y la ejecución manual lanzan validación; los pull requests también se validan. La validación instala Node 24, comprueba lint/TypeScript, prepara PostgreSQL y Mailpit efímeros, ejecuta las diez pruebas integrales (incluidos 1.500 SKU) y construye la imagen Linux. No usa la base ni el correo de producción.
 
-Con validación correcta y acceso SSH configurado, se despliega exactamente el commit probado. Las ejecuciones de producción se serializan y no se cancelan durante una migración. Si faltan credenciales, la validación puede pasar y el despliegue se omite con una explicación en el resumen de Actions. Eso no significa que se haya publicado la aplicación.
+Con validación correcta, acceso SSH y el secreto SMTP_PASSWORD de Resend configurados, se despliega exactamente el commit probado. Las ejecuciones de producción se serializan y no se cancelan durante una migración. Si faltan credenciales, la validación puede pasar y el despliegue se omite con una explicación en el resumen de Actions. Eso no significa que se haya publicado la aplicación.
 
 ## 1. Configuración del repositorio
 
@@ -42,6 +42,8 @@ chmod 600 .env
 
 Editar `.env` directamente en el servidor con valores reales. Generar contraseñas y secretos con `openssl rand -hex 32`. Usar contraseñas de PostgreSQL URL-seguras de al menos 24 caracteres. El archivo de ejemplo no es una configuración ejecutable. Nunca copiar el acceso, la base ni el SMTP local de desarrollo.
 
+Si falta el archivo, el despliegue crea un `.env` privado con claves aleatorias de PostgreSQL y sesión. Tras la autorización del responsable se configuró Resend: el secreto `SMTP_PASSWORD` del repositorio se aplica al correo del archivo generado por Samada. Las claves de base/sesión se conservan. Un `.env` ajeno a este generador se conserva íntegramente y requiere configuración manual. Si falta el correo, la validación se detiene antes de compilar o migrar. Consultar [configuración de correo](CONFIGURAR-CORREO-SAMADA.md).
+
 - `BETTER_AUTH_URL=https://gestion.samadaperu.com`.
 - `TRUSTED_ORIGINS` debe incluir los orígenes HTTPS permitidos, sin rutas.
 - Configurar SMTP accesible desde Docker y un remitente real verificado.
@@ -56,7 +58,7 @@ Caddy en el host puede apuntar a `127.0.0.1:3001`. Caddy en Docker debe comparti
 
 El script construye imágenes antes de sustituir la aplicación, valida el entorno, prepara permisos UID 1001, espera PostgreSQL, respalda la base, aplica migraciones y comprueba salud de aplicación y worker. No ejecuta `docker compose down` ni elimina volúmenes. El cambio final puede tener una breve interrupción; no es un despliegue azul/verde.
 
-La primera migración importa `data/cms-state.json` si existe; de otro modo usa el catálogo de muestra. Los datos de la base local no se suben por Git. La cuenta administrativa local tampoco se transfiere. Tras el primer despliegue, crear la cuenta real:
+La primera migración importa `data/cms-state.json` si existe; de otro modo usa el catálogo de muestra. Los datos de la base local no se suben por Git. La cuenta administrativa local tampoco se transfiere. El secreto privado `ADMIN_EMAIL` identifica al primer administrador: después de migrar se crea esa cuenta y se solicita un enlace de recuperación por correo. Si ya existe un superadministrador activo, no se alteran cuentas ni se reenvían invitaciones. Una cuenta previa sin rol no se eleva automáticamente. Como alternativa de instalación manual, una persona autorizada puede crear la cuenta real:
 
 ```bash
 cd /var/www/samada

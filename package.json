@@ -11,6 +11,7 @@
     "services": "docker compose -f compose.local.yml -p samada-commerce up -d --wait",
     "db:migrate": "tsx scripts/migrate.ts",
     "admin:create": "tsx scripts/create-admin.ts",
+    "admin:ensure": "tsx scripts/ensure-admin.ts",
     "worker": "tsx scripts/worker.ts",
     "test:integration": "tsx --test tests/integration.test.ts"
   },
