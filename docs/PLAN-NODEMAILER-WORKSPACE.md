@@ -1,6 +1,6 @@
 # Plan de migración de correo: Nodemailer + Google Workspace
 
-Fecha: 5 de noviembre de 2026. Estado actualizado: integración local implementada. Están disponibles los transportes SMTP OAuth y Gmail API, autorización local con PKCE, verificación, configuración por modo y alta inicial recuperable. El workflow ya no depende de Resend ni transfiere tokens de Google desde GitHub; espera configuración privada en el VPS. El consentimiento real, la entrega con Workspace y la publicación siguen pendientes de las credenciales y políticas de la cuenta. Consultar CONFIGURAR-CORREO-SAMADA.md para los comandos actuales.
+Fecha: 5 de noviembre de 2026. Estado actualizado: integración implementada. Están disponibles los transportes SMTP OAuth y Gmail API, autorización local con PKCE, verificación, configuración por modo y alta inicial recuperable. Con la autorización explícita del responsable, el workflow puede provisionar OAuth desde los secretos privados del repositorio al .env del VPS; mantiene la alternativa de configuración directa. Ya no depende de Resend. El consentimiento real del buzón, la entrega con Workspace y la publicación siguen pendientes de las credenciales y políticas de la cuenta. Consultar CONFIGURAR-CORREO-SAMADA.md para los comandos actuales.
 
 ## Decisión y restricciones
 

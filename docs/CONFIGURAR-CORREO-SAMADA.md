@@ -59,9 +59,24 @@ npm run mail:verify -- --env-file data/mail/google-oauth.env --send-to destinata
 
 El resultado confirma aceptación del proveedor, no llegada a bandeja. No hay reintentos automáticos de mensajes ante respuestas ambiguas, para reducir duplicados. Credenciales revocadas producen un mensaje de reconexión sin mostrar tokens.
 
-## 4. Configurar el VPS
+## 4. Guardar credenciales en GitHub y configurar el VPS
 
-Ruta implementada sin transferencia de tokens desde GitHub: una persona autorizada configura directamente el archivo privado `/var/www/samada/.env` del VPS de Samada. La autorización de almacenar una clave Resend no equivale a consentimiento para transferir el token de Google. Hasta confirmar ese destino, no copiarlo por herramientas de este chat.
+El responsable autorizó el 5 de noviembre de 2026 almacenar las credenciales OAuth, incluido el refresh token, en los secretos privados de `mavrictech-dev/samada-prototipo-2`, transferirlas por SSH al archivo privado `/var/www/samada/.env` del VPS `37.60.234.60` y usarlas para los correos del sistema y su enlace de acceso. El modo predeterminado es Gmail API de solo envío.
+
+Después de autorizar el buzón localmente, crear estos cuatro secretos en Settings → Secrets and variables → Actions → Secrets:
+
+| Secreto | Valor del archivo privado generado |
+|---|---|
+| GOOGLE_MAIL_USER | Buzón autorizado |
+| GOOGLE_OAUTH_CLIENT_ID | Identificador del cliente OAuth |
+| GOOGLE_OAUTH_CLIENT_SECRET | Secreto del cliente OAuth |
+| GOOGLE_OAUTH_REFRESH_TOKEN | Refresh token del consentimiento offline |
+
+Copiar los valores, sin las comillas del archivo .env. No pegarlos en el chat, en el código ni en registros. El secreto MAIL_FROM es opcional; al omitirlo se usa Samada con el buzón autorizado. Conservar ADMIN_EMAIL y el acceso SSH existentes. MAIL_TRANSPORT es una variable de repositorio opcional y por defecto vale gmail-api.
+
+El workflow usa la configuración GitHub solo si los cuatro secretos están completos y son coherentes. La envía exclusivamente al paso SSH y al generador privado del VPS. El generador conserva las claves de base y sesión y retira los campos SMTP obsoletos al aplicar Google. Si el .env existente no pertenece al generador de Samada, lo conserva y detiene el despliegue: debe configurarse manualmente, no se sobrescribe.
+
+Como alternativa, una persona autorizada puede configurar directamente el archivo del VPS sin guardar tokens en GitHub.
 
 Campos del archivo privado:
 
@@ -80,7 +95,7 @@ El generador del despliegue conserva los archivos de entorno ajenos a su marcado
 
 ## 5. Publicación y acceso inicial
 
-En GitHub conservar los secretos de SSH y ADMIN_EMAIL ya autorizados. **No se requiere SMTP_PASSWORD**. El workflow no lee ni envía secretos Google. Solo cuando el servidor tenga OAuth correctamente configurado, establecer la variable de repositorio `MAIL_CONFIGURED_ON_VPS=true` en Settings → Secrets and variables → Actions → Variables.
+En GitHub conservar los secretos de SSH y ADMIN_EMAIL ya autorizados. **No se requiere SMTP_PASSWORD**. Con los cuatro secretos Google completos se usa la provisión autorizada desde GitHub. Para la alternativa de configuración directa, omitir los cuatro secretos Google y establecer `MAIL_CONFIGURED_ON_VPS=true` solo después de verificar el correo en el servidor. Una configuración parcial de secretos Google bloquea la provisión, aunque exista esa variable; no hay cambio silencioso de ruta.
 
 Ejecutar el workflow de main. El script valida configuración, construye, ejecuta mail:verify antes de migrar, respalda PostgreSQL y crea el administrador inicial sin enviar correo. Después de activar y comprobar la aplicación solicita el enlace de acceso una sola vez.
 

@@ -7,7 +7,11 @@ flock -n 9 || { echo "Ya hay un despliegue en curso."; exit 1; }
 command -v docker >/dev/null || { echo "Instala Docker Engine y Compose en el servidor antes de desplegar."; exit 1; }
 command -v curl >/dev/null || { echo "Instala curl en el servidor."; exit 1; }
 docker compose version >/dev/null
-docker run --rm -v "$PWD:/workspace" -w /workspace -e DEPLOY_ADMIN_EMAIL node:24-alpine node scripts/bootstrap-production.mjs
+docker run --rm -v "$PWD:/workspace" -w /workspace \
+  -e DEPLOY_ADMIN_EMAIL -e DEPLOY_MAIL_TRANSPORT -e DEPLOY_MAIL_FROM \
+  -e DEPLOY_GOOGLE_MAIL_USER -e DEPLOY_GOOGLE_OAUTH_CLIENT_ID \
+  -e DEPLOY_GOOGLE_OAUTH_CLIENT_SECRET -e DEPLOY_GOOGLE_OAUTH_REFRESH_TOKEN \
+  node:24-alpine node scripts/bootstrap-production.mjs
 test -f .env || { echo "Falta .env de producción. Consulta docs/DESPLIEGUE-CONTINUO.md."; exit 1; }
 chmod 600 .env
 docker run --rm -v "$PWD:/workspace:ro" -w /workspace node:24-alpine node --env-file=.env scripts/validate-production.mjs

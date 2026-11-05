@@ -7,6 +7,7 @@ const fieldNames=['MAIL_TRANSPORT','MAIL_FROM','GOOGLE_MAIL_USER','GOOGLE_OAUTH_
 let current;
 try{current=await fs.readFile('.env','utf8');}catch(error){if(error.code!=='ENOENT')throw error;}
 if(current!==undefined&&!current.startsWith(marker)){
+ if(process.env.DEPLOY_MAIL_TRANSPORT)throw Error('.env existente conservado. No se aplicaron credenciales a un archivo ajeno: configura OAuth directamente en el VPS o adapta su gestión antes de reintentar.');
  console.log('.env existente conservado. Configura explícitamente su transporte; la validación no aceptará proveedores antiguos por omisión.');
 }else{
  const created=current===undefined;

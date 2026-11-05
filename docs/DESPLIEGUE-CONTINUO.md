@@ -4,7 +4,7 @@ Repositorio: https://github.com/mavrictech-dev/samada-prototipo-2
 
 Los cambios en `main` y la ejecución manual lanzan validación; los pull requests también se validan. La validación instala Node 24, comprueba lint/TypeScript, prepara PostgreSQL y Mailpit efímeros, ejecuta las diez pruebas integrales (incluidos 1.500 SKU) y construye la imagen Linux. No usa la base ni el correo de producción.
 
-Con validación correcta, acceso SSH, ADMIN_EMAIL y la variable MAIL_CONFIGURED_ON_VPS=true, se despliega exactamente el commit probado. OAuth se configura directamente en el archivo privado del VPS y se verifica antes de migrar. Los tokens Google no se trasladan desde GitHub. Las ejecuciones se serializan; si falta configuración el despliegue se omite con explicación, lo que no significa que se haya publicado.
+Con validación correcta, acceso SSH, ADMIN_EMAIL y los cuatro secretos GOOGLE_* completos, se despliega exactamente el commit probado. La transferencia desde GitHub al .env privado del VPS fue autorizada por el responsable; se verifica el correo antes de migrar. También se admite configuración directa en el VPS con MAIL_CONFIGURED_ON_VPS=true y sin secretos Google en GitHub. Las ejecuciones se serializan; si falta configuración el despliegue se omite con explicación, lo que no significa que se haya publicado.
 
 ## 1. Configuración del repositorio
 
@@ -42,7 +42,7 @@ chmod 600 .env
 
 Editar `.env` directamente en el servidor con valores reales. Generar contraseñas y secretos con `openssl rand -hex 32`. Usar contraseñas de PostgreSQL URL-seguras de al menos 24 caracteres. El archivo de ejemplo no es una configuración ejecutable. Nunca copiar el acceso, la base ni el SMTP local de desarrollo.
 
-Si falta el archivo, el despliegue crea un `.env` privado con claves aleatorias de PostgreSQL y sesión. Un `.env` ajeno al generador se conserva íntegramente. La configuración OAuth debe instalarla una persona autorizada; la validación exige MAIL_TRANSPORT y campos del modo seleccionado, sin exigir SMTP_PASSWORD para Google. Consultar [configuración de correo](CONFIGURAR-CORREO-SAMADA.md).
+Si falta el archivo, el despliegue crea un `.env` privado con claves aleatorias de PostgreSQL y sesión. Puede provisionar OAuth desde los secretos autorizados de GitHub y conservar esas claves. Un `.env` ajeno al generador se conserva íntegramente y el intento de provisión se detiene. La validación exige MAIL_TRANSPORT y campos del modo seleccionado, sin exigir SMTP_PASSWORD para Google. Consultar [configuración de correo](CONFIGURAR-CORREO-SAMADA.md).
 
 - `BETTER_AUTH_URL=https://gestion.samadaperu.com`.
 - `TRUSTED_ORIGINS` debe incluir los orígenes HTTPS permitidos, sin rutas.

@@ -76,21 +76,22 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       configured: ${{ steps.access.outputs.configured }}
+      mail_source: ${{ steps.access.outputs.mail_source }}
     steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - id: access
         env:
           SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           MAIL_CONFIGURED_ON_VPS: ${{ vars.MAIL_CONFIGURED_ON_VPS }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
-        run: |
-          if { [ -n "$SSH_PASSWORD" ] || [ -n "$SSH_PRIVATE_KEY" ]; } && [ "$MAIL_CONFIGURED_ON_VPS" = true ] && [ -n "$ADMIN_EMAIL" ]; then
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "### Despliegue pendiente de configurar" >> "$GITHUB_STEP_SUMMARY"
-            echo 'Configura OAuth directamente en el .env del VPS y compruébalo con mail:verify. Después establece la variable MAIL_CONFIGURED_ON_VPS=true; se requieren también SSH y ADMIN_EMAIL. Los tokens de Google no se transfieren desde GitHub. Consulta docs/CONFIGURAR-CORREO-SAMADA.md.' >> "$GITHUB_STEP_SUMMARY"
-          fi
+          MAIL_TRANSPORT: ${{ vars.MAIL_TRANSPORT || 'gmail-api' }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          GOOGLE_MAIL_USER: ${{ secrets.GOOGLE_MAIL_USER }}
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
+        run: node scripts/deployment-access.mjs
 
   deploy:
     name: Desplegar versión validada en Contabo
@@ -109,6 +110,12 @@ jobs:
           DEPLOY_CADDY_NETWORK: ${{ vars.CADDY_NETWORK }}
           DEPLOY_PUBLIC_HEALTH_URL: ${{ vars.PUBLIC_HEALTH_URL }}
           DEPLOY_ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          DEPLOY_MAIL_TRANSPORT: ${{ needs.configuration.outputs.mail_source == 'github-oauth' && (vars.MAIL_TRANSPORT || 'gmail-api') || '' }}
+          DEPLOY_MAIL_FROM: ${{ needs.configuration.outputs.mail_source == 'github-oauth' && secrets.MAIL_FROM || '' }}
+          DEPLOY_GOOGLE_MAIL_USER: ${{ needs.configuration.outputs.mail_source == 'github-oauth' && secrets.GOOGLE_MAIL_USER || '' }}
+          DEPLOY_GOOGLE_OAUTH_CLIENT_ID: ${{ needs.configuration.outputs.mail_source == 'github-oauth' && secrets.GOOGLE_OAUTH_CLIENT_ID || '' }}
+          DEPLOY_GOOGLE_OAUTH_CLIENT_SECRET: ${{ needs.configuration.outputs.mail_source == 'github-oauth' && secrets.GOOGLE_OAUTH_CLIENT_SECRET || '' }}
+          DEPLOY_GOOGLE_OAUTH_REFRESH_TOKEN: ${{ needs.configuration.outputs.mail_source == 'github-oauth' && secrets.GOOGLE_OAUTH_REFRESH_TOKEN || '' }}
         with:
           host: ${{ vars.SSH_HOST || '37.60.234.60' }}
           username: ${{ vars.SSH_USER || 'root' }}
@@ -118,7 +125,7 @@ jobs:
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           fingerprint: ${{ secrets.SSH_FINGERPRINT }}
           command_timeout: 30m
-          envs: DEPLOY_SHA,DEPLOY_CADDY_NETWORK,DEPLOY_PUBLIC_HEALTH_URL,DEPLOY_ADMIN_EMAIL
+          envs: DEPLOY_SHA,DEPLOY_CADDY_NETWORK,DEPLOY_PUBLIC_HEALTH_URL,DEPLOY_ADMIN_EMAIL,DEPLOY_MAIL_TRANSPORT,DEPLOY_MAIL_FROM,DEPLOY_GOOGLE_MAIL_USER,DEPLOY_GOOGLE_OAUTH_CLIENT_ID,DEPLOY_GOOGLE_OAUTH_CLIENT_SECRET,DEPLOY_GOOGLE_OAUTH_REFRESH_TOKEN
           script: |
             set -eu
             cd /var/www/samada

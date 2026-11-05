@@ -6,6 +6,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {parse} from 'dotenv';
+import {deploymentAccess} from '../scripts/deployment-access.mjs';
 const base={PATH:process.env.PATH,SystemRoot:process.env.SystemRoot,TEMP:process.env.TEMP,TMP:process.env.TMP};
 const google={MAIL_TRANSPORT:'gmail-api',GOOGLE_MAIL_USER:'sender@example.test',GOOGLE_OAUTH_CLIENT_ID:'client-id',GOOGLE_OAUTH_CLIENT_SECRET:'secret-private',GOOGLE_OAUTH_REFRESH_TOKEN:'refresh-private',MAIL_FROM:'Samada <sender@example.test>'};
 const valid={POSTGRES_PASSWORD:randomBytes(32).toString('hex'),BETTER_AUTH_SECRET:randomBytes(32).toString('hex'),BETTER_AUTH_URL:'https://gestion.samadaperu.com',TRUSTED_ORIGINS:'https://gestion.samadaperu.com,https://samadaperu.com',...google};
@@ -23,8 +24,20 @@ test('Bootstrap OAuth conserva claves, elimina SMTP obsoleto y no imprime secret
   for(const name of ['POSTGRES_PASSWORD','BETTER_AUTH_SECRET'])assert.equal(parse(initial)[name],config[name]);
   const invalid=run({DEPLOY_MAIL_TRANSPORT:'gmail-api'});assert.equal(invalid.status,1);assert.equal(await fs.readFile(file,'utf8'),after);
   await fs.writeFile(file,'# Configuración previa\nPOSTGRES_PASSWORD=conservar\n');
-  assert.equal(run({DEPLOY_MAIL_TRANSPORT:'gmail-api'}).status,0);assert.equal(await fs.readFile(file,'utf8'),'# Configuración previa\nPOSTGRES_PASSWORD=conservar\n');
+  assert.equal(run({DEPLOY_MAIL_TRANSPORT:'gmail-api'}).status,1);assert.equal(await fs.readFile(file,'utf8'),'# Configuración previa\nPOSTGRES_PASSWORD=conservar\n');
+  assert.equal(run({}).status,0);
  }finally{await fs.unlink(file).catch(()=>{});await fs.rmdir(directory);}
+});
+test('Acceso de despliegue: secretos OAuth completos o configuración directa en VPS',()=>{
+ const credentials={SSH_PASSWORD:'ssh-private',ADMIN_EMAIL:'admin@example.test'};
+ assert.equal(deploymentAccess(credentials).ready,false);
+ assert.deepEqual(deploymentAccess({...credentials,...google}),{ready:true,source:'github-oauth',missing:[]});
+ assert.deepEqual(deploymentAccess({...credentials,MAIL_CONFIGURED_ON_VPS:'true'}),{ready:true,source:'vps',missing:[]});
+ const partial=deploymentAccess({...credentials,GOOGLE_MAIL_USER:google.GOOGLE_MAIL_USER,MAIL_CONFIGURED_ON_VPS:'true'});
+ assert.equal(partial.ready,false,'Una configuración parcial no debe usar silenciosamente otra ruta.');
+ assert.ok(partial.missing.includes('GOOGLE_OAUTH_REFRESH_TOKEN'));
+ assert.equal(deploymentAccess({...credentials,...google,MAIL_FROM:'otro@example.test'}).ready,false);
+ assert.equal(deploymentAccess({...credentials,...google,SSH_PASSWORD:''}).ready,false);
 });
 test('Producción usa OAuth sin SMTP_PASSWORD y rechaza configuraciones incompletas',()=>{
  assert.equal(check(valid).status,0);const good=check(valid);assert.ok(!good.stdout.includes(valid.GOOGLE_OAUTH_REFRESH_TOKEN));
