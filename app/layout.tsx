@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { CmsProvider } from "@/components/cms-provider";
+import {themeBootstrap} from "@/lib/theme";
 
 export const metadata: Metadata = {
   title: "Samada Distribuidores",
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body><CmsProvider>{children}</CmsProvider></body>
+      <body><script dangerouslySetInnerHTML={{__html:themeBootstrap}}/><CmsProvider>{children}</CmsProvider></body>
     </html>
   );
 }

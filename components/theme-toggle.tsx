@@ -2,24 +2,26 @@
 
 import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
-
-const THEME_KEY = "samada-theme";
+import {applyTheme,preferredTheme,THEME_EVENT,THEME_KEY} from "@/lib/theme";
 
 export function ThemeToggle({ compact = false }: { compact?: boolean }) {
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem(THEME_KEY);
-    const next = stored ? stored === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
-    document.documentElement.dataset.theme = next ? "dark" : "light";
-    setDark(next);
+    const sync=()=>setDark(document.documentElement.dataset.theme==="dark");
+    const updatePreference=()=>applyTheme(preferredTheme());
+    const storage=(event:StorageEvent)=>{if(event.key===THEME_KEY||event.key===null)updatePreference();};
+    const media=window.matchMedia("(prefers-color-scheme: dark)");
+    updatePreference();
+    window.addEventListener(THEME_EVENT,sync);
+    window.addEventListener("storage",storage);
+    media.addEventListener("change",updatePreference);
+    sync();
+    return()=>{window.removeEventListener(THEME_EVENT,sync);window.removeEventListener("storage",storage);media.removeEventListener("change",updatePreference);};
   }, []);
 
   const toggle = () => {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.dataset.theme = next ? "dark" : "light";
-    localStorage.setItem(THEME_KEY, next ? "dark" : "light");
+    applyTheme(document.documentElement.dataset.theme==="dark"?"light":"dark",true);
   };
 
   return <button type="button" onClick={toggle} className={`theme-toggle ${compact ? "size-10" : "h-10 px-3"}`} aria-label={dark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"} title={dark ? "Modo claro" : "Modo oscuro"}>

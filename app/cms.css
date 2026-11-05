@@ -1,6 +1,16 @@
 :root{--cms-bg:#f1f4f0;--cms-surface:#fff;--cms-soft:#f5f7f3;--cms-ink:#253023;--cms-muted:#74816f;--cms-line:#dce4d7;--cms-accent:#7cb342;--cms-link:#4a7b2a}
 html[data-theme=dark]{--cms-bg:#111911;--cms-surface:#1b251b;--cms-soft:#202c20;--cms-ink:#edf4e8;--cms-muted:#abb9a4;--cms-line:#354332;--cms-link:#a3cf7a}
+.cms-shell,.auth-layout{--cms-bg:#f1f4f0;--cms-surface:#fff;--cms-soft:#f5f7f3;--cms-ink:#253023;--cms-muted:#61705b;--cms-line:#dce4d7;--cms-accent:#7cb342;--cms-link:#4a7b2a;color-scheme:light}
+html[data-theme=dark] .cms-shell,html[data-theme=dark] .auth-layout{--cms-bg:#111911;--cms-surface:#1b251b;--cms-soft:#202c20;--cms-ink:#edf4e8;--cms-muted:#b4c2ad;--cms-line:#43513f;--cms-link:#b2da8c;color-scheme:dark}
 .cms-shell{min-height:100vh;background:var(--cms-bg);color:var(--cms-ink);font-size:14px}
+.cms-workspace{min-height:100vh;background:var(--cms-bg);color:var(--cms-ink)}
+.cms-main,.cms-topbar,.cms-page-heading h2,.cms-modal h2{color:var(--cms-ink)}
+.cms-main{background:var(--cms-bg)}
+.cms-shell input::placeholder,.auth-layout input::placeholder{color:var(--cms-muted);opacity:1}
+.cms-shell input,.cms-shell select,.cms-shell textarea{accent-color:var(--cms-accent)}
+.cms-shell [class*="border-"],.auth-layout [class*="border-"]{border-color:var(--cms-line)}
+html[data-theme=dark] .cms-badge-amber{color:#edc680}
+html[data-theme=dark] .cms-error,html[data-theme=dark] .cms-shell .text-red-600,html[data-theme=dark] .cms-shell .text-red-700{color:#ffaaaa}
 @media(min-width:1024px){.cms-icon-button.cms-mobile-menu{display:none}.auth-form-content .samada-logo{display:none}}
 .cms-sidebar{width:248px;position:fixed;inset:0 auto 0 0;z-index:70;display:flex;flex-direction:column;background:#1c281b;color:#f5f8f2;border-right:1px solid #354430}
 .cms-brand{display:flex;min-height:116px;flex-direction:column;justify-content:center;align-items:flex-start;gap:17px;padding:24px 27px}
