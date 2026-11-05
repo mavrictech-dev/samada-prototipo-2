@@ -1,36 +1,105 @@
-# Correo transaccional de Samada
+# Correo de Samada con Nodemailer y Google Workspace
 
-Configuración autorizada por el responsable el 20 de octubre de 2026: usar Resend para enviar verificaciones de cuenta y recuperación de contraseña con el remitente `Samada <acceso@samadaperu.com>`. La aplicación soporta SMTP; falta crear la cuenta del proveedor, verificar el dominio y guardar la clave de envío.
+Implementación: 5 de noviembre de 2026. Resend ya no es un requisito del código ni del flujo de despliegue. No necesitas una contraseña de aplicación. La conexión real requiere un cliente OAuth y el consentimiento del buzón; una política de Workspace puede exigir aprobación de su administrador.
 
-## Preparación de la cuenta y DNS
+## Transporte
 
-1. Crear o abrir una cuenta en https://resend.com.
-2. En Domains, añadir `samadaperu.com`.
-3. Copiar exactamente los registros de envío que Resend indique a la zona DNS del dominio en GoDaddy. No inventar sus valores ni activar recepción de correo para este caso.
-4. Esperar que Resend muestre el dominio como Verified.
-5. En API Keys, crear una clave dedicada al envío de Samada con el menor alcance disponible.
+- `gmail-api` (predeterminado para la autorización): Nodemailer compone el MIME y Gmail API envía con permiso `gmail.send`. No permite leer el buzón.
+- `gmail-oauth-smtp`: Nodemailer envía por smtp.gmail.com:465 con OAuth. Google exige `https://mail.google.com/`, que concede acceso amplio al buzón; el comando requiere confirmarlo expresamente.
+- `smtp-local`: Mailpit para desarrollo y CI. Producción lo rechaza.
+- `smtp`: SMTP autenticado genérico con TLS; no se configura automáticamente un proveedor.
 
-El diagnóstico público del 20 de octubre de 2026 encontró nameservers `ns59.domaincontrol.com` y `ns60.domaincontrol.com`. Antes de cambiar registros, comprobar que la zona activa sigue siendo esa. No sustituir registros de la web ni registros de correo existentes.
+El remitente debe coincidir con el buzón autorizado. No se permite enviar como acceso@samadaperu.com desde un buzón de otro dominio sin una integración adicional de alias. El nombre visible puede ser Samada. La cuenta administradora del CMS y el remitente son independientes.
 
-## Configuración propuesta
+## 1. Preparar Google Cloud
 
-| Campo | Valor |
-|---|---|
-| SMTP_HOST | smtp.resend.com |
-| SMTP_PORT | 465 |
-| SMTP_SECURE | true |
-| SMTP_USER | resend |
-| SMTP_PASSWORD | clave API dedicada, privada |
-| MAIL_FROM | Samada <acceso@samadaperu.com> |
+1. Abrir Google Cloud con una cuenta autorizada para crear o utilizar un proyecto. No es necesario configurar un relay de Workspace, pero tener un buzón no garantiza permiso para crear proyectos o consentir aplicaciones.
+2. Habilitar Gmail API para el proyecto cuando se use `gmail-api`.
+3. Configurar la pantalla de consentimiento en Google Auth Platform. Declarar `openid`, `email` y el permiso del transporte elegido.
+4. Crear un cliente OAuth de tipo **Web application** y registrar exactamente este callback:
+   `http://127.0.0.1:43821/oauth/google/callback`.
+5. Descargar el JSON del cliente a una carpeta privada fuera del repositorio y de public/. No pegarlo en el chat.
+6. Revisar estado de publicación/verificación. Los tokens de una aplicación externa en Testing con permisos Gmail pueden caducar a los siete días. No usar esa modalidad como configuración duradera sin resolver la política de Google.
 
-Resend requiere una clave API y un dominio verificado. El puerto 465 usa TLS implícito.
+Si aparecen `admin_policy_enforced`, aplicación bloqueada o acceso denegado, solicitar aprobación al administrador del dominio. No sirve sustituirlo por la contraseña normal. No cambiar de alcance o transporte para evitar un bloqueo administrativo.
 
-## Guardar la clave y desplegar
+## 2. Autorizar localmente
 
-Crear el secreto `SMTP_PASSWORD` en https://github.com/mavrictech-dev/samada-prototipo-2/settings/secrets/actions y pegar la clave API de envío de Resend. `ADMIN_EMAIL` guarda de forma privada el correo autorizado para el primer administrador. Después ejecutar **Actions → Samada CI y despliegue continuo → Run workflow → main**. El sistema crea esa cuenta únicamente si aún no hay un superadministrador activo y solicita el correo para establecer su contraseña.
+Desde la carpeta samada-commerce, con dependencias instaladas:
 
-Destino autorizado: desde ese secreto, mediante la conexión SSH del despliegue, al archivo privado `/var/www/samada/.env` del VPS Contabo `37.60.234.60`. El generador crea claves de base y sesión si falta el archivo y aplica el SMTP autorizado a archivos generados por Samada, conservando esas claves entre despliegues. No modifica archivos de entorno preexistentes ajenos a su generador. La aplicación usa la clave para autenticar los correos de registro y recuperación con Resend.
+```powershell
+npm run mail:authorize -- --client-config "C:\ruta\privada\cliente-google.json" --user "tu-buzon@tu-dominio.com" --transport gmail-api
+```
 
-No publicar claves en Git, registros o en el chat. La preparación y validación no envían correos de prueba. La comprobación de entrega requiere una operación real de registro o recuperación después de verificar el dominio.
+El comando muestra el enlace de Google. Abrirlo, elegir el buzón esperado y consentir el permiso. El servidor de callback escucha solo en 127.0.0.1 durante tres minutos; valida state, PKCE, identidad verificada y el alcance. El navegador no recibe el refresh token.
 
-Fuentes: [SMTP de Resend](https://resend.com/docs/send-with-smtp), [verificación de dominios](https://resend.com/docs/dashboard/domains/introduction).
+El resultado queda en `data/mail/google-oauth.env`, excluido de Git y Docker. No se imprime ningún token ni se transfiere a GitHub o al VPS. Si el archivo existe se rechaza la sobrescritura. Para reautorizar usar `--output data/mail/google-oauth-nuevo.env`. Conservar esos archivos como credenciales privadas; los permisos POSIX 0600 se aplican donde el sistema los soporte, y en Windows deben custodiarse además con permisos de usuario.
+
+Si se elige SMTP expresamente:
+
+```powershell
+npm run mail:authorize -- --client-config "C:\ruta\privada\cliente-google.json" --user "tu-buzon@tu-dominio.com" --transport gmail-oauth-smtp --accept-full-mail-scope
+```
+
+No usar un token de gmail.send para SMTP. El comando verifica la correspondencia del alcance y transporte.
+
+## 3. Verificar sin enviar
+
+```powershell
+npm run mail:verify -- --env-file data/mail/google-oauth.env
+```
+
+Verifica renovación del access token, cuenta y permisos. Para SMTP también verifica conexión y autenticación. La ruta API no hace una operación de envío durante esta comprobación; por tanto aún debe probarse la entrega.
+
+Para solicitar explícitamente un único correo de prueba:
+
+```powershell
+npm run mail:verify -- --env-file data/mail/google-oauth.env --send-to destinatario-autorizado@dominio.com
+```
+
+El resultado confirma aceptación del proveedor, no llegada a bandeja. No hay reintentos automáticos de mensajes ante respuestas ambiguas, para reducir duplicados. Credenciales revocadas producen un mensaje de reconexión sin mostrar tokens.
+
+## 4. Configurar el VPS
+
+Ruta implementada sin transferencia de tokens desde GitHub: una persona autorizada configura directamente el archivo privado `/var/www/samada/.env` del VPS de Samada. La autorización de almacenar una clave Resend no equivale a consentimiento para transferir el token de Google. Hasta confirmar ese destino, no copiarlo por herramientas de este chat.
+
+Campos del archivo privado:
+
+```dotenv
+MAIL_TRANSPORT=gmail-api
+GOOGLE_MAIL_USER=BUZON_AUTORIZADO
+GOOGLE_OAUTH_CLIENT_ID=CLIENTE
+GOOGLE_OAUTH_CLIENT_SECRET=SECRETO
+GOOGLE_OAUTH_REFRESH_TOKEN=TOKEN_OFFLINE
+# MAIL_FROM opcional; se deduce Samada <GOOGLE_MAIL_USER>.
+```
+
+Sustituir los marcadores con los valores del archivo local autorizado. Conservar todas las variables de PostgreSQL, autenticación y demás configuración del servidor. No subir el archivo a Git, no mostrarlo en los logs y no reusar los tokens como variables NEXT_PUBLIC.
+
+El generador del despliegue conserva los archivos de entorno ajenos a su marcador. Si se aplica configuración Google a un archivo administrado por Samada, conserva las claves de base/sesión y retira los campos SMTP antiguos. La validación obliga a elegir transporte: no continúa con Resend silenciosamente.
+
+## 5. Publicación y acceso inicial
+
+En GitHub conservar los secretos de SSH y ADMIN_EMAIL ya autorizados. **No se requiere SMTP_PASSWORD**. El workflow no lee ni envía secretos Google. Solo cuando el servidor tenga OAuth correctamente configurado, establecer la variable de repositorio `MAIL_CONFIGURED_ON_VPS=true` en Settings → Secrets and variables → Actions → Variables.
+
+Ejecutar el workflow de main. El script valida configuración, construye, ejecuta mail:verify antes de migrar, respalda PostgreSQL y crea el administrador inicial sin enviar correo. Después de activar y comprobar la aplicación solicita el enlace de acceso una sola vez.
+
+Si el proveedor rechazó o no confirmó ese envío, no se repite automáticamente en cada deploy. Una persona autorizada debe revisar el estado y solicitar expresamente:
+
+```bash
+docker compose --project-name samada run --rm --no-deps migrate npm run admin:send-access -- --initial --retry
+```
+
+Un intento concurrente no vuelve a reclamar una invitación en envío durante diez minutos. No se crean cuentas duplicadas, no se elevan usuarios preexistentes y una invitación ya aceptada por el proveedor no se repite por este comando. Si el enlace caducó, usar el flujo normal Olvidé mi contraseña.
+
+## Operación y pruebas
+
+- `npm run test:mail`: Google simulado, MIME, permisos, token revocado, errores y callback seguro.
+- `node --test tests/deployment.test.mjs`: configuración por transporte, preservación de claves y protección de archivos.
+- `npm run test:initial-admin`: base local, cuentas temporales y envío simulado; no ejecutar en producción.
+- `npm run test:integration`: aplicación, worker, PostgreSQL y Mailpit locales, incluidos 1.500 productos y recuperación.
+- `npm run build` y `npm run lint`.
+
+Las pruebas automatizadas no sustituyen el consentimiento de Google ni la prueba de recepción real. Si un refresh token se revoca, debe repetirse la autorización y actualizar la configuración privada. La salud del catálogo público no depende de contactar a Google en cada petición.
+
+Fuentes: [Nodemailer OAuth](https://nodemailer.com/smtp/oauth2), [Stream transport](https://nodemailer.com/transports/stream), [Google OAuth de servidor](https://developers.google.com/identity/protocols/oauth2/web-server), [permisos Gmail](https://developers.google.com/workspace/gmail/api/auth/scopes), [políticas Workspace](https://knowledge.workspace.google.com/admin/apps/control-which-apps-access-google-workspace-data).

@@ -7,3 +7,5 @@ data
 *.log
 audit-install.json
 docs/plantillas
+**/client_secret*.json
+**/google-client*.json

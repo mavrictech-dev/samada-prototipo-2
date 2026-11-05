@@ -2,6 +2,8 @@
 
 Catálogo B2B y CMS con Next.js, TypeScript, Tailwind, Turn.js, PostgreSQL y Better Auth. Los cambios se guardan en el servidor y los permisos se validan en cada operación.
 
+El correo usa Nodemailer con Google Workspace OAuth (SMTP o Gmail API de solo envío), sin contraseña de aplicación ni requisito de Resend. [Configuración y comandos de autorización](docs/CONFIGURAR-CORREO-SAMADA.md). Las pruebas usan Mailpit; el correo real exige consentimiento del buzón.
+
 ## Puesta en marcha local
 
 Requiere Node.js 24 y Docker Desktop en ejecución. Desde esta carpeta:

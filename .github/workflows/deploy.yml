@@ -34,6 +34,7 @@ jobs:
       BETTER_AUTH_URL: http://localhost:3000
       TRUSTED_ORIGINS: http://localhost:3000
       SMTP_HOST: 127.0.0.1
+      MAIL_TRANSPORT: smtp-local
       SMTP_PORT: "2526"
       SMTP_SECURE: "false"
       MAIL_FROM: Samada <acceso@samada.local>
@@ -49,7 +50,9 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: node --test tests/deployment.test.mjs
+      - run: npm run test:mail
       - run: npm run db:migrate
+      - run: npm run test:initial-admin
       - run: npm run admin:create -- --email admin@samada.local
       - run: npm run admin:ensure
       - run: npm run build
@@ -78,15 +81,15 @@ jobs:
         env:
           SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          MAIL_CONFIGURED_ON_VPS: ${{ vars.MAIL_CONFIGURED_ON_VPS }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
         run: |
-          if { [ -n "$SSH_PASSWORD" ] || [ -n "$SSH_PRIVATE_KEY" ]; } && [ -n "$SMTP_PASSWORD" ] && [ -n "$ADMIN_EMAIL" ]; then
+          if { [ -n "$SSH_PASSWORD" ] || [ -n "$SSH_PRIVATE_KEY" ]; } && [ "$MAIL_CONFIGURED_ON_VPS" = true ] && [ -n "$ADMIN_EMAIL" ]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
             echo "### Despliegue pendiente de configurar" >> "$GITHUB_STEP_SUMMARY"
-            echo 'Configura el acceso SSH (SSH_PASSWORD o SSH_PRIVATE_KEY), Resend (SMTP_PASSWORD) y el administrador inicial (ADMIN_EMAIL) en Settings → Secrets and variables → Actions. Consulta docs/CONFIGURAR-CORREO-SAMADA.md. No se contactó al VPS.' >> "$GITHUB_STEP_SUMMARY"
+            echo 'Configura OAuth directamente en el .env del VPS y compruébalo con mail:verify. Después establece la variable MAIL_CONFIGURED_ON_VPS=true; se requieren también SSH y ADMIN_EMAIL. Los tokens de Google no se transfieren desde GitHub. Consulta docs/CONFIGURAR-CORREO-SAMADA.md.' >> "$GITHUB_STEP_SUMMARY"
           fi
 
   deploy:
@@ -105,7 +108,6 @@ jobs:
           DEPLOY_SHA: ${{ github.sha }}
           DEPLOY_CADDY_NETWORK: ${{ vars.CADDY_NETWORK }}
           DEPLOY_PUBLIC_HEALTH_URL: ${{ vars.PUBLIC_HEALTH_URL }}
-          DEPLOY_RESEND_API_KEY: ${{ secrets.SMTP_PASSWORD }}
           DEPLOY_ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
         with:
           host: ${{ vars.SSH_HOST || '37.60.234.60' }}
@@ -116,7 +118,7 @@ jobs:
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           fingerprint: ${{ secrets.SSH_FINGERPRINT }}
           command_timeout: 30m
-          envs: DEPLOY_SHA,DEPLOY_CADDY_NETWORK,DEPLOY_PUBLIC_HEALTH_URL,DEPLOY_RESEND_API_KEY,DEPLOY_ADMIN_EMAIL
+          envs: DEPLOY_SHA,DEPLOY_CADDY_NETWORK,DEPLOY_PUBLIC_HEALTH_URL,DEPLOY_ADMIN_EMAIL
           script: |
             set -eu
             cd /var/www/samada

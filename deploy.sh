@@ -7,7 +7,7 @@ flock -n 9 || { echo "Ya hay un despliegue en curso."; exit 1; }
 command -v docker >/dev/null || { echo "Instala Docker Engine y Compose en el servidor antes de desplegar."; exit 1; }
 command -v curl >/dev/null || { echo "Instala curl en el servidor."; exit 1; }
 docker compose version >/dev/null
-docker run --rm -v "$PWD:/workspace" -w /workspace -e DEPLOY_RESEND_API_KEY -e DEPLOY_ADMIN_EMAIL node:24-alpine node scripts/bootstrap-production.mjs
+docker run --rm -v "$PWD:/workspace" -w /workspace -e DEPLOY_ADMIN_EMAIL node:24-alpine node scripts/bootstrap-production.mjs
 test -f .env || { echo "Falta .env de producción. Consulta docs/DESPLIEGUE-CONTINUO.md."; exit 1; }
 chmod 600 .env
 docker run --rm -v "$PWD:/workspace:ro" -w /workspace node:24-alpine node --env-file=.env scripts/validate-production.mjs
@@ -16,6 +16,7 @@ compose=(docker compose --project-name samada)
 echo "[1/6] Construyendo aplicación y procesador; se mantiene la versión actual durante la compilación..."
 "${compose[@]}" build app worker
 "${compose[@]}" run --rm --no-deps migrate node scripts/validate-production.mjs
+"${compose[@]}" run --rm --no-deps migrate npm run mail:verify
 echo "[2/6] Preparando almacenamiento privado..."
 mkdir -p data/backups data/media
 if [ "$(id -u)" = 0 ]; then
@@ -58,5 +59,6 @@ if [ -n "${PUBLIC_HEALTH_URL:-}" ]; then
   "${compose[@]}" exec -T -e "PUBLIC_HEALTH_URL=$PUBLIC_HEALTH_URL" -e "EXPECTED_REVISION=$APP_REVISION" app node -e 'fetch(process.env.PUBLIC_HEALTH_URL,{signal:AbortSignal.timeout(15000)}).then(async r=>{const body=await r.json();if(!r.ok||body.status!=="ok"||body.revision!==process.env.EXPECTED_REVISION)process.exit(1);}).catch(()=>process.exit(1))'
 fi
 "${compose[@]}" ps
+"${compose[@]}" run --rm --no-deps migrate npm run admin:send-access -- --initial
 echo "Despliegue completado: $APP_REVISION"
 echo "Respaldo previo: $backup"

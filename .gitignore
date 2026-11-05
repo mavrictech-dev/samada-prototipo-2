@@ -10,3 +10,5 @@ dist/
 data/
 audit-install.json
 .samada-deploy.lock
+client_secret*.json
+google-client*.json
