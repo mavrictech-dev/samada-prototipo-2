@@ -1,0 +1,49 @@
+name: Preparar correo propio en Contabo
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Operación de correo
+        type: choice
+        options: [diagnose, prepare, check-dns]
+        default: diagnose
+permissions:
+  contents: read
+jobs:
+  mail:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: samada-production
+      cancel-in-progress: false
+    steps:
+      - name: Ejecutar operación acotada de correo
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        env:
+          MAIL_OPERATION: ${{ inputs.operation }}
+          MAIL_COMMIT: ${{ github.sha }}
+        with:
+          host: ${{ vars.SSH_HOST || '37.60.234.60' }}
+          username: ${{ vars.SSH_USER || 'root' }}
+          port: ${{ vars.SSH_PORT || '22' }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          fingerprint: ${{ secrets.SSH_FINGERPRINT }}
+          command_timeout: 18m
+          envs: MAIL_OPERATION,MAIL_COMMIT
+          script: |
+            set -eu
+            cd /var/www/samada
+            test "$(git remote get-url origin)" = "https://github.com/mavrictech-dev/samada-prototipo-2.git"
+            git fetch origin main
+            git merge-base --is-ancestor "$MAIL_COMMIT" origin/main
+            task_dir=$(mktemp -d /tmp/samada-mail-task.XXXXXX)
+            trap 'rmdir "$task_dir" 2>/dev/null || true' EXIT
+            case "$MAIL_OPERATION" in
+              diagnose)
+                git show "$MAIL_COMMIT:scripts/mail-vps-diagnose.sh" > "$task_dir/task.sh"
+                bash "$task_dir/task.sh"
+                unlink "$task_dir/task.sh"
+                ;;
+              *) echo 'Operación todavía no habilitada en esta revisión.'; exit 1 ;;
+            esac
