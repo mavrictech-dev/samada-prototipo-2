@@ -57,6 +57,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: node --test tests/deployment.test.mjs
+      - run: npx tsx --test tests/routing.test.ts
       - run: npm run test:mail
       - run: npm run db:migrate
       - run: npm run test:initial-admin

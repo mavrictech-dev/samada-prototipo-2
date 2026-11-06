@@ -66,8 +66,8 @@ export function CatalogApp() {
     else {navigator.clipboard?.writeText(message);setNotice("Consulta copiada. Agrega el teléfono real en el CMS para abrir WhatsApp.");setCartOpen(false);setTimeout(()=>setNotice(""),4000)}
   };
 
-  if(!ready)return <main className="grid min-h-screen place-items-center bg-[#f3f5f0]"><div className="text-center"><span className="mx-auto block size-8 animate-spin rounded-full border-2 border-[#7CB342] border-t-transparent"/><p className="mt-4 text-sm text-[#687064]">Preparando catálogo…</p></div></main>;
-  if(error)return <main className="grid min-h-screen place-items-center"><div className="text-center"><p>{error}</p><button className="mt-4 rounded-lg bg-[#7CB342] px-5 py-3" onClick={()=>void refresh()}>Reintentar</button></div></main>;
+  if(!ready)return <main className="theme-page grid min-h-screen place-items-center"><div className="text-center"><span className="mx-auto block size-8 animate-spin rounded-full border-2 border-[#7CB342] border-t-transparent"/><p className="mt-4 text-sm text-[#687064]">Preparando catálogo…</p></div></main>;
+  if(error)return <main className="theme-page grid min-h-screen place-items-center"><div className="text-center"><p role="alert">{error}</p><button className="mt-4 rounded-lg bg-[#7CB342] px-5 py-3 text-[#172014]" onClick={()=>void refresh()}>Reintentar</button></div></main>;
   const bookKey=JSON.stringify([visiblePages.map(p=>[p.id,p.productIds]),filtered.map(p=>[p.id,p.version])]);
   return <div className="theme-page relative min-h-screen text-[#212121]">
     {/* Fondo completo responsive con imagen de almacén, blur y oscurecido adaptativo */}
