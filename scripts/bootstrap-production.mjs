@@ -7,12 +7,12 @@ const fieldNames=['MAIL_TRANSPORT','MAIL_FROM','GOOGLE_MAIL_USER','GOOGLE_OAUTH_
 let current;
 try{current=await fs.readFile('.env','utf8');}catch(error){if(error.code!=='ENOENT')throw error;}
 if(current!==undefined&&!current.startsWith(marker)){
- if(process.env.DEPLOY_MAIL_TRANSPORT)throw Error('.env existente conservado. No se aplicaron credenciales a un archivo ajeno: configura OAuth directamente en el VPS o adapta su gestión antes de reintentar.');
+ if(process.env.DEPLOY_MAIL_TRANSPORT)throw Error('.env existente conservado. No se aplicaron cambios a un archivo ajeno: revisa su gestión antes de reintentar.');
  console.log('.env existente conservado. Configura explícitamente su transporte; la validación no aceptará proveedores antiguos por omisión.');
 }else{
  const created=current===undefined;
  let text=current??[
-  marker+' Nodemailer con Google Workspace.',
+  marker+' Credenciales locales; correo configurable.',
   'POSTGRES_PASSWORD='+randomBytes(32).toString('hex'),
   'BETTER_AUTH_SECRET='+randomBytes(32).toString('hex'),
   'BETTER_AUTH_URL=https://gestion.samadaperu.com',
@@ -28,12 +28,12 @@ if(current!==undefined&&!current.startsWith(marker)){
   const line=name+'='+JSON.stringify(value).replace(/\$/g,()=> '$$'),pattern=new RegExp('^'+name+'=.*$','m');
   text=pattern.test(text)?text.replace(pattern,()=>line):text+line+'\n';
  }
- if(hasMail&&incoming.MAIL_TRANSPORT.startsWith('gmail-')){
-  text=text.split('\n').filter(line=>!/^SMTP_(HOST|PORT|SECURE|USER|PASSWORD)=/.test(line)).join('\n');
+ if(hasMail&&(incoming.MAIL_TRANSPORT.startsWith('gmail-')||incoming.MAIL_TRANSPORT==='disabled')){
+  text=text.split('\n').filter(line=>!/^SMTP_(HOST|PORT|SECURE|USER|PASSWORD)=/.test(line)&&!(incoming.MAIL_TRANSPORT==='disabled'&&/^GOOGLE_/.test(line))).join('\n');
  }
  if(text!==current){
   const pending='.env.pending-'+randomUUID();
   try{await fs.writeFile(pending,text,{mode:0o600,flag:'wx'});await fs.rename(pending,'.env');await fs.chmod('.env',0o600);}finally{await fs.unlink(pending).catch(()=>{});}
  }
- console.log(created?'Entorno privado creado. Completa la autorización OAuth antes de desplegar.':'Claves de base y sesión conservadas; configuración de correo aplicada sin mostrar valores.');
+ console.log(created?'Entorno privado creado; no se muestran valores.':'Claves de base y sesión conservadas; configuración de correo aplicada sin mostrar valores.');
 }

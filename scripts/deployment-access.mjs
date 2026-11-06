@@ -1,23 +1,14 @@
 import fs from 'node:fs';
 import {pathToFileURL} from 'node:url';
-import {readMailConfig} from '../server/mail-config.mjs';
 
 export function deploymentAccess(env){
  const missing=[];
  if(!env.SSH_PASSWORD&&!env.SSH_PRIVATE_KEY)missing.push('SSH_PASSWORD o SSH_PRIVATE_KEY');
  if(!env.ADMIN_EMAIL)missing.push('ADMIN_EMAIL');
- const fields=['GOOGLE_MAIL_USER','GOOGLE_OAUTH_CLIENT_ID','GOOGLE_OAUTH_CLIENT_SECRET','GOOGLE_OAUTH_REFRESH_TOKEN'];
- const count=fields.filter(key=>Boolean(env[key])).length;
  let source='none';
- if(count){
-  missing.push(...fields.filter(key=>!env[key]));
-  if(count===fields.length){
-   const mode=env.MAIL_TRANSPORT||'gmail-api';
-   if(!['gmail-api','gmail-oauth-smtp'].includes(mode))missing.push('MAIL_TRANSPORT válido para Google');
-   else try{readMailConfig({...env,MAIL_TRANSPORT:mode},{production:true});source='github-oauth';}catch{missing.push('Configuración OAuth o remitente válidos');}
-  }
- }else if(env.MAIL_CONFIGURED_ON_VPS==='true')source='vps';
- else missing.push(...fields);
+ if(env.MAIL_TRANSPORT==='disabled')source='disabled';
+ else if(env.MAIL_CONFIGURED_ON_VPS==='true')source='vps';
+ else missing.push('MAIL_CONFIGURED_ON_VPS=true después de preparar SMTP y verificar DNS');
  return {ready:missing.length===0&&source!=='none',source,missing};
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){

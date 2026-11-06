@@ -4,6 +4,7 @@ import { securityList,saveSecurity,deleteSecurity,globalPermission } from "@/ser
 import { errorResponse,fail } from "@/server/errors";
 import { db } from "@/server/db";
 import { auth } from "@/server/auth";
+import { mailEnabled } from '@/server/mail-config.mjs';
 type Context={params:Promise<{resource:string;id?:string[]}>};
 export async function GET(request:Request,ctx:Context){try{const {resource}=await ctx.params;if(!['users','roles','permissions'].includes(resource))fail('Recurso no encontrado.',404);return Response.json(await securityList(await principal(request.headers),resource));}catch(error){return errorResponse(error);}}
 async function mutate(request:Request,ctx:Context){try{
@@ -13,6 +14,7 @@ async function mutate(request:Request,ctx:Context){try{
     await globalPermission(user,'users.sessions');await db.query('DELETE FROM session WHERE "userId"=$1',[id]);await audit(user.id,'users.revoke-sessions',id||null);return Response.json({ok:true});
   }
   if(resource==='users'&&parts?.[1]==='recovery'){
+    if(!mailEnabled())fail('La recuperación por correo está desactivada temporalmente.',503);
     await authorize(request.headers,'users.update');const r=await db.query('SELECT email FROM "user" WHERE id=$1',[id]);if(!r.rows[0])fail('Usuario no encontrado.',404);
     await auth.api.requestPasswordReset({body:{email:r.rows[0].email,redirectTo:`${process.env.BETTER_AUTH_URL}/reset-password`}});return Response.json({ok:true});
   }

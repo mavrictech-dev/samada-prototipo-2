@@ -5,7 +5,7 @@ on:
       operation:
         description: Operación de correo
         type: choice
-        options: [diagnose, prepare, check-dns]
+        options: [diagnose]
         default: diagnose
 permissions:
   contents: read

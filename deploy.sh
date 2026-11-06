@@ -18,9 +18,10 @@ docker run --rm -v "$PWD:/workspace:ro" -w /workspace node:24-alpine node --env-
 compose=(docker compose --project-name samada)
 "${compose[@]}" config --quiet
 echo "[1/6] Construyendo aplicación y procesador; se mantiene la versión actual durante la compilación..."
-"${compose[@]}" build app worker
+"${compose[@]}" build app worker migrate
 "${compose[@]}" run --rm --no-deps migrate node scripts/validate-production.mjs
-"${compose[@]}" run --rm --no-deps migrate npm run mail:verify
+mail_mode=$(docker run --rm -v "$PWD:/workspace:ro" -w /workspace node:24-alpine node --env-file=.env -p 'process.env.MAIL_TRANSPORT')
+if [ "$mail_mode" != disabled ]; then "${compose[@]}" run --rm --no-deps migrate npm run mail:verify; fi
 echo "[2/6] Preparando almacenamiento privado..."
 mkdir -p data/backups data/media
 if [ "$(id -u)" = 0 ]; then
@@ -39,7 +40,25 @@ if [ "$(id -u)" = 0 ]; then chown 1001:1001 "$backup"; fi
 echo "[4/6] Aplicando migración transaccional..."
 "${compose[@]}" run --rm --no-deps migrate
 "${compose[@]}" run --rm --no-deps migrate npm run admin:ensure
+if [ -n "${ACCESS_EMAIL:-}" ]; then
+  "${compose[@]}" run --rm --no-deps -e ACCESS_EMAIL -e ACCESS_PUBLIC_KEY migrate npm run admin:provision-access
+fi
 echo "[5/6] Activando versión y verificando aplicación y trabajador..."
+legacy_stopped=false
+rollback(){
+  result=$?
+  if [ "$result" != 0 ] && [ "$legacy_stopped" = true ]; then
+    "${compose[@]}" stop app worker || true
+    docker start samada_app >/dev/null
+    echo "Se restauró el contenedor anterior; revisar la ejecución fallida."
+  fi
+  exit "$result"
+}
+trap rollback EXIT
+if docker inspect samada_app >/dev/null 2>&1; then
+  legacy_running=$(docker inspect samada_app --format '{{.State.Running}}')
+  if [ "$legacy_running" = true ]; then docker stop --time 30 samada_app >/dev/null; legacy_stopped=true; fi
+fi
 export APP_REVISION
 APP_REVISION=$(git rev-parse HEAD)
 "${compose[@]}" up -d --no-deps --wait --wait-timeout 120 app worker
@@ -63,6 +82,7 @@ if [ -n "${PUBLIC_HEALTH_URL:-}" ]; then
   "${compose[@]}" exec -T -e "PUBLIC_HEALTH_URL=$PUBLIC_HEALTH_URL" -e "EXPECTED_REVISION=$APP_REVISION" app node -e 'fetch(process.env.PUBLIC_HEALTH_URL,{signal:AbortSignal.timeout(15000)}).then(async r=>{const body=await r.json();if(!r.ok||body.status!=="ok"||body.revision!==process.env.EXPECTED_REVISION)process.exit(1);}).catch(()=>process.exit(1))'
 fi
 "${compose[@]}" ps
-"${compose[@]}" run --rm --no-deps migrate npm run admin:send-access -- --initial
+if [ "$mail_mode" != disabled ]; then "${compose[@]}" run --rm --no-deps migrate npm run admin:send-access -- --initial; fi
 echo "Despliegue completado: $APP_REVISION"
+trap - EXIT
 echo "Respaldo previo: $backup"

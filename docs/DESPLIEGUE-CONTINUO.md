@@ -4,7 +4,7 @@ Repositorio: https://github.com/mavrictech-dev/samada-prototipo-2
 
 Los cambios en `main` y la ejecución manual lanzan validación; los pull requests también se validan. La validación instala Node 24, comprueba lint/TypeScript, prepara PostgreSQL y Mailpit efímeros, ejecuta las diez pruebas integrales (incluidos 1.500 SKU) y construye la imagen Linux. No usa la base ni el correo de producción.
 
-Con validación correcta, acceso SSH, ADMIN_EMAIL y los cuatro secretos GOOGLE_* completos, se despliega exactamente el commit probado. La transferencia desde GitHub al .env privado del VPS fue autorizada por el responsable; se verifica el correo antes de migrar. También se admite configuración directa en el VPS con MAIL_CONFIGURED_ON_VPS=true y sin secretos Google en GitHub. Las ejecuciones se serializan; si falta configuración el despliegue se omite con explicación, lo que no significa que se haya publicado.
+Con validación correcta, acceso SSH y ADMIN_EMAIL, se despliega exactamente el commit probado. La publicación temporal autorizada usa MAIL_TRANSPORT=disabled: login local activo; registro público, verificación y recuperación por correo bloqueados. No requiere Resend, Google Cloud, OAuth ni cambios DNS. Las ejecuciones se serializan. Para reactivar SMTP, configurar el VPS y cambiar MAIL_TRANSPORT en las variables del repositorio junto con MAIL_CONFIGURED_ON_VPS=true.
 
 ## 1. Configuración del repositorio
 
@@ -23,7 +23,7 @@ Variables opcionales en **Variables**:
 | SSH_USER | root | Usuario existente; necesita Docker y propiedad de datos |
 | SSH_PORT | 22 | Puerto SSH |
 | CADDY_NETWORK | detección de grenco-caddy-1 | Red Docker del proxy compartido |
-| PUBLIC_HEALTH_URL | vacío | Recomendado: https://samadaperu.com/api/health |
+| PUBLIC_HEALTH_URL | https://gestion.samadaperu.com/api/health | Exige la revisión publicada en el dominio |
 
 Sin `PUBLIC_HEALTH_URL`, la comprobación HTTP verifica localhost:3001 y la salud de contenedores, no el dominio público. Con la variable configurada, también se exige que el dominio devuelva la revisión desplegada.
 
@@ -42,7 +42,7 @@ chmod 600 .env
 
 Editar `.env` directamente en el servidor con valores reales. Generar contraseñas y secretos con `openssl rand -hex 32`. Usar contraseñas de PostgreSQL URL-seguras de al menos 24 caracteres. El archivo de ejemplo no es una configuración ejecutable. Nunca copiar el acceso, la base ni el SMTP local de desarrollo.
 
-Si falta el archivo, el despliegue crea un `.env` privado con claves aleatorias de PostgreSQL y sesión. Puede provisionar OAuth desde los secretos autorizados de GitHub y conservar esas claves. Un `.env` ajeno al generador se conserva íntegramente y el intento de provisión se detiene. La validación exige MAIL_TRANSPORT y campos del modo seleccionado, sin exigir SMTP_PASSWORD para Google. Consultar [configuración de correo](CONFIGURAR-CORREO-SAMADA.md).
+Si falta el archivo, el despliegue crea un `.env` privado con claves aleatorias de PostgreSQL y sesión. Conserva esas claves en las siguientes publicaciones. Un `.env` ajeno al generador se conserva íntegramente y el intento de provisión se detiene. La validación exige MAIL_TRANSPORT y campos del modo seleccionado; disabled es un modo explícito y no envía correo. Consultar [configuración de correo](CONFIGURAR-CORREO-SAMADA.md).
 
 - `BETTER_AUTH_URL=https://gestion.samadaperu.com`.
 - `TRUSTED_ORIGINS` debe incluir los orígenes HTTPS permitidos, sin rutas.
@@ -88,3 +88,9 @@ Cada despliegue deja un `data/backups/pre-deploy-*.dump` con formato PostgreSQL 
 Si falla la compilación o prevalidación, no se reemplaza la versión actual. Si falla una migración, revisar su transacción antes de continuar. Un fallo posterior a una migración no ejecuta una reversión automática del esquema. Para volver a un commit compatible, seleccionar ese commit en el servidor y ejecutar `bash deploy.sh`; coordinar una restauración aparte si el esquema anterior no es compatible.
 
 Referencias: [GitHub Actions y secretos](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets), [orden de arranque en Docker Compose](https://docs.docker.com/compose/how-tos/startup-order).
+
+## Acceso inicial sin correo
+
+El workflow manual admite access_email y access_public_key (clave pública RSA de 3072 bits o más, PEM en base64). Después de las pruebas y migraciones, crea la cuenta solicitada con contraseña aleatoria, rol Superadministrador y acceso local activo. La contraseña se conserva en data/access con permisos privados y fuera de Git. Solo un sobre cifrado RSA-OAEP/SHA-256 aparece en Actions; la clave privada queda con el solicitante. El proceso no eleva cuentas preexistentes ni reemplaza contraseñas. La persona debe cambiar su contraseña desde Mi cuenta.
+
+Al sustituir el contenedor antiguo samada_app, se conserva detenido para recuperar servicio si falla la activación. El catálogo data/cms-state.json se respalda y migra a PostgreSQL. No se borra el origen.

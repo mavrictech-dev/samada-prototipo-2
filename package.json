@@ -18,7 +18,8 @@
     "test:mail": "tsx --test tests/mail.test.ts tests/mail-authorization.test.ts",
     "test:initial-admin": "tsx --test tests/initial-admin.test.ts",
     "worker": "tsx scripts/worker.ts",
-    "test:integration": "tsx --test tests/integration.test.ts"
+    "test:integration": "tsx --test tests/integration.test.ts",
+    "admin:provision-access": "tsx scripts/provision-local-access.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1153.0",

@@ -1,3 +1,13 @@
+# Estado actual: publicación sin correo
+
+El responsable autorizó publicar con `MAIL_TRANSPORT=disabled`. El login y las cuentas se almacenan en PostgreSQL del VPS. Registro público, recuperación y verificación por correo quedan bloqueados; las rutas responden 503 y la interfaz explica la indisponibilidad. El CMS permite crear cuentas con contraseña inicial y conserva los permisos y roles.
+
+No se necesita entrar a GoDaddy para publicar la web. Para emitir correo propio con un remitente de Samada sí se necesita al responsable del DNS: SPF, DKIM y DMARC; el PTR se configura en Contabo. El diagnóstico del VPS confirmó salida TCP/25 a Gmail y Outlook, ausencia de los nuevos registros y PTR todavía de Contabo. No se ha instalado ni activado un servidor de correo.
+
+Nodemailer admite SMTP autenticado con TLS (`MAIL_TRANSPORT=smtp`); las credenciales se configuran de forma privada en el VPS cuando exista un SMTP utilizable. La ruta OAuth descrita debajo queda como alternativa anterior, no es necesaria ni se usa en esta publicación.
+
+---
+
 # Correo de Samada con Nodemailer y Google Workspace
 
 Implementación: 5 de noviembre de 2026. Resend ya no es un requisito del código ni del flujo de despliegue. No necesitas una contraseña de aplicación. La conexión real requiere un cliente OAuth y el consentimiento del buzón; una política de Workspace puede exigir aprobación de su administrador.

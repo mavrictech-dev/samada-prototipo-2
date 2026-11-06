@@ -1,7 +1,8 @@
 import { randomUUID, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { db, transaction } from "./db";
-import { auth } from "./auth";
+import { auth,createAuth } from "./auth";
+import { mailEnabled } from './mail-config.mjs';
 import { allowedBrands, audit, permit } from "./access";
 import { parsed } from "./catalog";
 import { fail } from "./errors";
@@ -57,7 +58,7 @@ export async function saveSecurity(user:CurrentUser,resource:string,id:string|un
       for(const permission of new Set(role.permissionIds))await client.query('INSERT INTO role_permissions(role_id,permission_id) VALUES($1,$2)',[key,permission]);
     });await audit(user.id,'roles.save',key);return key;
   }
-  const value=parsed(z.object({name:z.string().trim().min(1).max(150),email:z.email(),status:z.enum(['pending','active','suspended','archived']),assignments:assignmentsSchema.optional()}),input);
+  const value=parsed(z.object({name:z.string().trim().min(1).max(150),email:z.email(),status:z.enum(['pending','active','suspended','archived']),password:z.string().min(12).max(128).optional(),assignments:assignmentsSchema.optional()}),input);
   const old=id?(await db.query('SELECT id,email,status FROM "user" WHERE id=$1',[id])).rows[0]:null;
   if(id&&!old)fail('Usuario no encontrado.',404);
   if(old&&old.email!==value.email.toLowerCase())fail('El correo identifica la cuenta. Invita otra cuenta para usar un correo diferente.');
@@ -65,8 +66,11 @@ export async function saveSecurity(user:CurrentUser,resource:string,id:string|un
   if(selected)await assignRoles(user,id||'',selected);
   let target=id;
   if(!target){
-    const created=await auth.api.signUpEmail({body:{name:value.name,email:value.email,password:randomBytes(28).toString('base64url')+'Aa1!'}});
+    if(!mailEnabled()&&!value.password)fail('Define una contraseña inicial de al menos 12 caracteres. El correo está desactivado.');
+    const signupAuth=mailEnabled()?auth:createAuth({sendVerificationOnSignUp:false});
+    const created=await signupAuth.api.signUpEmail({body:{name:value.name,email:value.email,password:mailEnabled()?randomBytes(28).toString('base64url')+'Aa1!':value.password!}});
     target=created.user.id;
+    if(!mailEnabled())await db.query('UPDATE "user" SET "emailVerified"=true WHERE id=$1',[target]);
   }
   await transaction(async client=>{
     await client.query("SELECT pg_advisory_xact_lock(125902)");
@@ -82,7 +86,7 @@ export async function saveSecurity(user:CurrentUser,resource:string,id:string|un
     if(selected){await client.query('DELETE FROM user_roles WHERE user_id=$1',[target]);for(const a of selected)await client.query('INSERT INTO user_roles(user_id,role_id,brand_ids) VALUES($1,$2,$3)',[target,a.roleId,a.brandIds]);}
     if(value.status!=='active')await client.query('DELETE FROM session WHERE "userId"=$1',[target]);
   });
-  if(!id)await auth.api.requestPasswordReset({body:{email:value.email,redirectTo:`${process.env.BETTER_AUTH_URL}/reset-password`}});
+  if(!id&&mailEnabled())await auth.api.requestPasswordReset({body:{email:value.email,redirectTo:`${process.env.BETTER_AUTH_URL}/reset-password`}});
   await audit(user.id,id?'users.update':'users.invite',target||null,{status:value.status});return target;
 }
 export async function deleteSecurity(user:CurrentUser,resource:string,id:string) {

@@ -2,6 +2,12 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createMailService,MailDeliveryError,safeMailError} from '../server/mail-service';
 import {readMailConfig,GOOGLE_SEND_SCOPE,GOOGLE_SMTP_SCOPE} from '../server/mail-config.mjs';
+test('Modo sin correo rechaza envíos explícitamente y no contacta proveedores',async()=>{
+ let requests=0;const mail=createMailService({MAIL_TRANSPORT:'disabled'},{request:async()=>{requests++;return Response.json({});}});
+ await assert.rejects(mail.verify(),/desactivado/);
+ await assert.rejects(mail.send('recipient@example.test','Prueba','No enviar'),/desactivado/);
+ assert.equal(requests,0);mail.close();
+});
 const env={MAIL_TRANSPORT:'gmail-api',GOOGLE_MAIL_USER:'sender@example.test',GOOGLE_OAUTH_CLIENT_ID:'client-id',GOOGLE_OAUTH_CLIENT_SECRET:'private-secret',GOOGLE_OAUTH_REFRESH_TOKEN:'private-refresh',MAIL_FROM:'Samada <sender@example.test>'};
 const oauth=(options:{email?:string;scopes?:string[];revoked?:boolean}={})=>({
  async getAccessToken(){if(options.revoked)throw {response:{data:{error:'invalid_grant'}},message:'private-refresh invalid_grant'};return {token:'access-private'};},

@@ -28,14 +28,13 @@ test('Bootstrap OAuth conserva claves, elimina SMTP obsoleto y no imprime secret
   assert.equal(run({}).status,0);
  }finally{await fs.unlink(file).catch(()=>{});await fs.rmdir(directory);}
 });
-test('Acceso de despliegue: secretos OAuth completos o configuración directa en VPS',()=>{
+test('Acceso de despliegue: modo temporal sin correo o SMTP configurado en VPS',()=>{
  const credentials={SSH_PASSWORD:'ssh-private',ADMIN_EMAIL:'admin@example.test'};
  assert.equal(deploymentAccess(credentials).ready,false);
- assert.deepEqual(deploymentAccess({...credentials,...google}),{ready:true,source:'github-oauth',missing:[]});
+ assert.deepEqual(deploymentAccess({...credentials,MAIL_TRANSPORT:'disabled'}),{ready:true,source:'disabled',missing:[]});
  assert.deepEqual(deploymentAccess({...credentials,MAIL_CONFIGURED_ON_VPS:'true'}),{ready:true,source:'vps',missing:[]});
- const partial=deploymentAccess({...credentials,GOOGLE_MAIL_USER:google.GOOGLE_MAIL_USER,MAIL_CONFIGURED_ON_VPS:'true'});
- assert.equal(partial.ready,false,'Una configuración parcial no debe usar silenciosamente otra ruta.');
- assert.ok(partial.missing.includes('GOOGLE_OAUTH_REFRESH_TOKEN'));
+ const partial=deploymentAccess({...credentials,GOOGLE_MAIL_USER:google.GOOGLE_MAIL_USER});
+ assert.equal(partial.ready,false,'Las credenciales Google ya no habilitan automáticamente el despliegue.');
  assert.equal(deploymentAccess({...credentials,...google,MAIL_FROM:'otro@example.test'}).ready,false);
  assert.equal(deploymentAccess({...credentials,...google,SSH_PASSWORD:''}).ready,false);
 });
@@ -43,6 +42,7 @@ test('Producción usa OAuth sin SMTP_PASSWORD y rechaza configuraciones incomple
  assert.equal(check(valid).status,0);const good=check(valid);assert.ok(!good.stdout.includes(valid.GOOGLE_OAUTH_REFRESH_TOKEN));
  for(const override of [{BETTER_AUTH_URL:'http://localhost:3000'},{MAIL_TRANSPORT:''},{MAIL_TRANSPORT:'smtp-local',SMTP_HOST:'mail'},{GOOGLE_OAUTH_REFRESH_TOKEN:''},{GOOGLE_OAUTH_CLIENT_SECRET:''},{MAIL_FROM:'Samada <other@example.test>'},{GOOGLE_MAIL_USER:'sender@samada.local',MAIL_FROM:'Samada <sender@samada.local>'},{TRUSTED_ORIGINS:'https://otro.example'},{BETTER_AUTH_SECRET:'CAMBIAR_POR_VALOR'}])assert.equal(check({...valid,...override}).status,1);
  const smtp={...valid,MAIL_TRANSPORT:'smtp',SMTP_HOST:'smtp.example.test',SMTP_PORT:'587',SMTP_SECURE:'false',SMTP_USER:'user',SMTP_PASSWORD:'secret'};
+ assert.equal(check({...valid,MAIL_TRANSPORT:'disabled'}).status,0);
  assert.equal(check(smtp).status,0);assert.equal(check({...smtp,SMTP_PASSWORD:''}).status,1);
  assert.equal(check({...smtp,SMTP_PORT:'25'}).status,1);
 });

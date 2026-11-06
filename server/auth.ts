@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { db } from "./db";
 import { sendMail } from "./mail";
+import { mailEnabled } from "./mail-config.mjs";
 
 export function createAuth(options:{sendVerificationOnSignUp?:boolean;onResetMailSent?:()=>void}={}){return betterAuth({
   appName:"Samada", baseURL:process.env.BETTER_AUTH_URL||"http://localhost:3000", secret:process.env.BETTER_AUTH_SECRET,
@@ -9,6 +10,7 @@ export function createAuth(options:{sendVerificationOnSignUp?:boolean;onResetMai
   trustedOrigins:(process.env.TRUSTED_ORIGINS||process.env.BETTER_AUTH_URL||"http://localhost:3000").split(","),
   emailAndPassword:{
     enabled:true, autoSignIn:false, requireEmailVerification:true, minPasswordLength:12,
+    disableSignUp:!mailEnabled()&&options.sendVerificationOnSignUp!==false,
     resetPasswordTokenExpiresIn:1800, revokeSessionsOnPasswordReset:true,
     sendResetPassword:async({user,url})=>{await sendMail(user.email,"Recupera tu acceso a Samada",`Hola ${user.name},\n\nEstablece tu contraseña mediante este enlace válido por 30 minutos:\n${url}\n\nSi no lo solicitaste, ignora este correo.`);options.onResetMailSent?.();},
   },
