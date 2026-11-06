@@ -5,6 +5,11 @@ df -h / /var/lib/docker
 free -m
 docker version --format '{{.Server.Version}}'
 docker ps --format 'table {{.Names}}\t{{.Ports}}'
+if docker inspect samada_app >/dev/null 2>&1; then
+  echo '=== Almacenamiento del catálogo anterior ==='
+  docker inspect samada_app --format '{{json .Mounts}}'
+  docker exec samada_app node -e 'const fs=require("node:fs");for(const p of ["/app/data/cms-state.json","/app/data"]){try{const s=fs.statSync(p);console.log(p+": "+(s.isDirectory()?"directorio":s.size+" bytes"));}catch{console.log(p+": no existe");}}'
+fi
 echo '=== Puertos de correo ya ocupados ==='
 ss -lnt '( sport = :25 or sport = :465 or sport = :587 or sport = :2465 )'
 echo '=== DNS y salida SMTP (sin enviar mensajes) ==='
